@@ -7,20 +7,20 @@ on:
     branches: [main]
 
 jobs:
-  validate:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Verify core docs and OpenAPI stub exist
-        run: |
-          test -f README.md
-          test -f docs/ARCHITECTURE.md
-          test -f docs/INTEGRATIONS.md
-          test -f protocols/openapi/coordinator-gateway.yaml
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Parse OpenAPI stub (YAML)
+      - name: Install package and dev deps
+        run: pip install -e ".[dev]"
+      - name: Verify docs and OpenAPI stubs
         run: |
-          pip install pyyaml
+          test -f README.md
+          test -f docs/ARCHITECTURE.md
           python -c "import yaml; yaml.safe_load(open('protocols/openapi/coordinator-gateway.yaml'))"
+          python -c "import yaml; yaml.safe_load(open('protocols/zdl/v1/control.openapi.yaml'))"
+      - name: Run tests
+        run: pytest tests -q --tb=short

@@ -9,6 +9,12 @@ desktop.ini
 *.swp
 *.swo
 
+# Python
+*.egg-info/
+.eggs/
+dist/
+build/
+
 # Python / Node (future)
 __pycache__/
 *.py[cod]

@@ -1,0 +1,28 @@
+services:
+  coordinator:
+    build:
+      context: ../..
+      dockerfile: examples/lan-pipeline-32b/Dockerfile
+    command: ["zdl-coordinator"]
+    environment:
+      ZDL_COORDINATOR_HOST: "0.0.0.0"
+      ZDL_COORDINATOR_PORT: "7443"
+      ZDL_COORDINATOR_API_TOKEN: "dev-coordinator-token"
+    ports:
+      - "7443:7443"
+
+  gateway:
+    build:
+      context: ../..
+      dockerfile: examples/lan-pipeline-32b/Dockerfile
+    command: ["zdl-gateway"]
+    environment:
+      ZDL_GATEWAY_HOST: "0.0.0.0"
+      ZDL_GATEWAY_PORT: "8080"
+      ZDL_GATEWAY_COORDINATOR_URL: "http://coordinator:7443"
+      ZDL_GATEWAY_COORDINATOR_TOKEN: "dev-coordinator-token"
+      ZDL_GATEWAY_API_KEY: "dev-gateway-key"
+    ports:
+      - "8080:8080"
+    depends_on:
+      - coordinator
