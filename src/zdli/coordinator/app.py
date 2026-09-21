@@ -1,27 +1,17 @@
 from __future__ import annotations
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, status
+from fastapi import Depends, FastAPI, HTTPException, Query, status
 
+from zdli.auth import verify_admin, verify_worker_or_admin
 from zdli.schemas import (
-    GraphStatus,
     ModelGraph,
     ModelGraphUpsert,
     SessionCreateResponse,
     WorkerRecord,
     WorkerRegisterRequest,
+    WorkerStatusUpdate,
 )
-from zdli.settings import CoordinatorSettings
 from zdli.store import CoordinatorStore, store
-
-settings = CoordinatorSettings()
-
-
-def verify_token(authorization: str | None = Header(default=None)) -> None:
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Bearer token required")
-    token = authorization.removeprefix("Bearer ").strip()
-    if token != settings.api_token:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Invalid token")
 
 
 def create_app(coordinator_store: CoordinatorStore | None = None) -> FastAPI:
@@ -35,7 +25,7 @@ def create_app(coordinator_store: CoordinatorStore | None = None) -> FastAPI:
     @app.post(
         "/zdl/v1/workers/register",
         response_model=WorkerRecord,
-        dependencies=[Depends(verify_token)],
+        dependencies=[Depends(verify_worker_or_admin)],
     )
     def register_worker(body: WorkerRegisterRequest) -> WorkerRecord:
         record = WorkerRecord(**body.model_dump())
@@ -44,7 +34,7 @@ def create_app(coordinator_store: CoordinatorStore | None = None) -> FastAPI:
     @app.post(
         "/zdl/v1/workers/{worker_id}/heartbeat",
         response_model=WorkerRecord,
-        dependencies=[Depends(verify_token)],
+        dependencies=[Depends(verify_worker_or_admin)],
     )
     def heartbeat(worker_id: str) -> WorkerRecord:
         w = db.heartbeat(worker_id)
@@ -55,7 +45,7 @@ def create_app(coordinator_store: CoordinatorStore | None = None) -> FastAPI:
     @app.get(
         "/zdl/v1/workers",
         response_model=list[WorkerRecord],
-        dependencies=[Depends(verify_token)],
+        dependencies=[Depends(verify_admin)],
     )
     def list_workers() -> list[WorkerRecord]:
         return db.list_workers()
@@ -63,7 +53,7 @@ def create_app(coordinator_store: CoordinatorStore | None = None) -> FastAPI:
     @app.put(
         "/zdl/v1/graphs/{logical_model_id}",
         response_model=ModelGraph,
-        dependencies=[Depends(verify_token)],
+        dependencies=[Depends(verify_admin)],
     )
     def upsert_graph(logical_model_id: str, body: ModelGraphUpsert) -> ModelGraph:
         if body.logical_model_id != logical_model_id:
@@ -84,7 +74,7 @@ def create_app(coordinator_store: CoordinatorStore | None = None) -> FastAPI:
     @app.get(
         "/zdl/v1/graphs/{logical_model_id}",
         response_model=ModelGraph,
-        dependencies=[Depends(verify_token)],
+        dependencies=[Depends(verify_admin)],
     )
     def get_graph(logical_model_id: str) -> ModelGraph:
         g = db.get_graph(logical_model_id)
@@ -95,7 +85,7 @@ def create_app(coordinator_store: CoordinatorStore | None = None) -> FastAPI:
     @app.get(
         "/zdl/v1/graphs",
         response_model=list[ModelGraph],
-        dependencies=[Depends(verify_token)],
+        dependencies=[Depends(verify_admin)],
     )
     def list_graphs() -> list[ModelGraph]:
         return db.list_model_graphs()
@@ -103,7 +93,7 @@ def create_app(coordinator_store: CoordinatorStore | None = None) -> FastAPI:
     @app.post(
         "/zdl/v1/sessions",
         response_model=SessionCreateResponse,
-        dependencies=[Depends(verify_token)],
+        dependencies=[Depends(verify_admin)],
     )
     def create_session(
         logical_model_id: str = Query(..., min_length=1),
@@ -124,6 +114,17 @@ def create_app(coordinator_store: CoordinatorStore | None = None) -> FastAPI:
             ingress_base_url=g.ingress_base_url.rstrip("/"),
             stage_count=len(g.stages),
         )
+
+    @app.patch(
+        "/zdl/v1/workers/{worker_id}/status",
+        response_model=WorkerRecord,
+        dependencies=[Depends(verify_worker_or_admin)],
+    )
+    def update_status(worker_id: str, body: WorkerStatusUpdate) -> WorkerRecord:
+        w = db.update_worker_status(worker_id, body.phase, body.status_message)
+        if not w:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Worker not registered")
+        return w
 
     return app
 

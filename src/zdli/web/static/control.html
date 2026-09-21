@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>ZDLI Control Center</title>
+  <link rel="stylesheet" href="/static/control.css" />
+</head>
+<body>
+  <h1>ZDLI Control Center</h1>
+  <p class="note">Run on your <strong>control PC</strong>. Remote Windows/Ubuntu nodes install <strong>ZDL Edge</strong> and connect <strong>outbound</strong> to the public coordinator URL (no inbound access to corporate PCs required).</p>
+
+  <div class="card">
+    <h2>WAN linking (copy to each edge node)</h2>
+    <p>Coordinator URL (HTTPS): <code id="pubCoord">…</code></p>
+    <p>Gateway URL (Cursor): <code id="pubGw">…</code></p>
+    <p>Enroll token: <code id="enrollHint">…</code></p>
+    <p>Workers: <span id="counts">0/0</span></p>
+    <label>Public coordinator URL (after tunnel or DNS)</label>
+    <input id="inCoord" placeholder="https://your-tunnel.example.com:7443" />
+    <label>Public gateway URL</label>
+    <input id="inGw" placeholder="https://your-tunnel.example.com:8080" />
+    <p><button id="savePublic">Save public URLs</button>
+    <button class="secondary" id="bootstrap">Auto-build shard graph from workers</button></p>
+    <p id="bootMsg" class="note"></p>
+  </div>
+
+  <div class="card">
+    <h2>Registered edge nodes</h2>
+    <table id="workers"><thead><tr>
+      <th>Worker ID</th><th>Host</th><th>OS</th><th>Site</th><th>Phase</th><th>Message</th><th>Healthy</th>
+    </tr></thead><tbody></tbody></table>
+  </div>
+
+  <div class="card">
+    <h2>Scheduled checks</h2>
+    <label>Job name</label><input id="jobName" value="Cluster health" />
+    <label>Interval (minutes)</label><input id="jobInterval" type="number" value="30" />
+    <button id="addJob">Add schedule</button>
+    <table id="jobs"><thead><tr>
+      <th>Name</th><th>Every</th><th>Action</th><th>Next run</th><th>Last run</th>
+    </tr></thead><tbody></tbody></table>
+  </div>
+  <script src="/static/control.js"></script>
+</body>
+</html>

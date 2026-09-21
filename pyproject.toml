@@ -24,6 +24,11 @@ dev = ["pytest>=8.0", "pytest-asyncio>=0.24", "pyyaml>=6.0"]
 zdl-coordinator = "zdli.coordinator.main:main"
 zdl-gateway = "zdli.gateway.main:main"
 zdl-worker = "zdli.worker.main:main"
+zdl-control-center = "zdli.control_center.main:main"
+zdl-edge = "zdli.edge.main:main"
+
+[tool.setuptools.package-data]
+zdli = ["web/static/*"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
