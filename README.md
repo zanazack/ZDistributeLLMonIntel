@@ -38,13 +38,14 @@ Client → Gateway → Coordinator → [Worker shard 0 → … → shard N] → 
 
 ## Status
 
-**Phase 1 MVP in progress:** Python **coordinator**, **OpenAI gateway**, and **worker agent** (`pip install -e ".[dev]"`). See [`examples/lan-pipeline-32b/`](examples/lan-pipeline-32b/) for llama.cpp RPC wiring.
+**Phase 1 MVP:** OS-agnostic Python stack (Windows + Linux).
 
-```powershell
-zdl-coordinator   # :7443
-zdl-gateway       # :8080 — Cursor base URL http://127.0.0.1:8080/v1
-zdl-worker        # register each edge node
-```
+| App | Command | Where |
+|-----|---------|--------|
+| **Control Center** (UI + coordinator + gateway) | `zdl-control-center` | **This PC** — [`docs/WAN-CLUSTER-SETUP.md`](docs/WAN-CLUSTER-SETUP.md) |
+| **Edge Client** (UI + outbound agent) | `zdl-edge` | Each remote Windows/Ubuntu Intel PC |
+
+Install: [`install/windows/`](install/windows/) · [`install/ubuntu/`](install/ubuntu/)
 
 ## Getting started
 

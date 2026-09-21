@@ -12,6 +12,7 @@ from zdli.schemas import (
 from zdli.store import CoordinatorStore
 
 AUTH = {"Authorization": "Bearer dev-coordinator-token"}
+AUTH_ENROLL = {"Authorization": "Bearer dev-enroll-token"}
 
 
 @pytest.fixture
@@ -73,6 +74,12 @@ def test_session_requires_ingress(client: TestClient) -> None:
         headers=AUTH,
     )
     assert r.status_code == 503
+
+
+def test_register_with_enroll_token(client: TestClient) -> None:
+    body = WorkerRegisterRequest(worker_id="edge-1", site_id="wan")
+    r = client.post("/zdl/v1/workers/register", json=body.model_dump(), headers=AUTH_ENROLL)
+    assert r.status_code == 200
 
 
 def test_session_ok(client: TestClient) -> None:

@@ -6,7 +6,14 @@ import threading
 import uuid
 from datetime import timedelta
 
-from zdli.schemas import GraphStatus, ModelGraph, ModelGraphUpsert, WorkerRecord, utc_now
+from zdli.schemas import (
+    GraphStatus,
+    ModelGraph,
+    ModelGraphUpsert,
+    WorkerPhase,
+    WorkerRecord,
+    utc_now,
+)
 
 HEARTBEAT_TTL = timedelta(seconds=45)
 
@@ -23,6 +30,18 @@ class CoordinatorStore:
             record.healthy = True
             self._workers[record.worker_id] = record
             return record
+
+    def update_worker_status(
+        self, worker_id: str, phase: WorkerPhase, status_message: str
+    ) -> WorkerRecord | None:
+        with self._lock:
+            w = self._workers.get(worker_id)
+            if not w:
+                return None
+            w.phase = phase
+            w.status_message = status_message
+            w.last_seen = utc_now()
+            return w
 
     def heartbeat(self, worker_id: str) -> WorkerRecord | None:
         with self._lock:

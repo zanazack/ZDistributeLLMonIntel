@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>ZDLI Edge Client</title>
+  <link rel="stylesheet" href="/static/edge.css" />
+</head>
+<body>
+  <h1>ZDLI Edge Client</h1>
+  <p class="note">Windows or Ubuntu Intel PC — connects <strong>outbound</strong> to your control cluster over the Internet.</p>
+
+  <div class="card">
+    <p class="step">1. Enter values from Control Center (WAN section)</p>
+    <label>Coordinator URL</label>
+    <input id="coord" placeholder="https://your-public-host:7443" />
+    <label>Enroll token</label>
+    <input id="enroll" type="password" />
+    <label>Worker ID (unique per machine)</label>
+    <input id="workerId" placeholder="win-store-01" />
+    <label>Site ID</label>
+    <input id="site" value="wan" />
+  </div>
+
+  <div class="card">
+    <p class="step">2. Inference runtime (you control paths)</p>
+    <label>OpenAI base URL (ingress llama-server on this node, if any)</label>
+    <input id="openai" placeholder="http://127.0.0.1:8081 — optional until llama is running" />
+    <label>RPC port (llama-rpc-server on this node, if shard worker)</label>
+    <input id="rpcPort" placeholder="50052" />
+  </div>
+
+  <div class="card">
+    <p class="step">3. Connect</p>
+    <button id="save">Save &amp; connect</button>
+    <button id="stop" class="secondary">Stop agent</button>
+    <p>Status: <span id="phase">offline</span></p>
+    <p id="msg"></p>
+    <div id="log"></div>
+  </div>
+  <script src="/static/edge.js"></script>
+</body>
+</html>
