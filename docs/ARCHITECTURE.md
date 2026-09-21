@@ -118,6 +118,8 @@ A single logical model may use **one runtime homogeneously** in v1; heterogeneou
 - **Petals / distributed HF** — pipeline over Internet; latency lessons for WAN.
 - **OpenAI API** — de facto client contract for connectors.
 
-## Remaining open questions
+## Trust and WAN (locked)
 
-See [`DECISIONS.md`](DECISIONS.md) — attestation default, WAN overlay preference, and first reference model id.
+- **Attestation:** optional TEE/attestation; default enrollment is PKI + mTLS ([`DECISIONS.md`](DECISIONS.md)).
+- **WAN:** default **TLS-only** on public Internet; VPN overlay optional ([`DEPLOYMENT-PROFILES.md`](DEPLOYMENT-PROFILES.md)).
+- **Reference weights:** **Qwen2.5-32B-Instruct** ([`REFERENCE-MODEL.md`](REFERENCE-MODEL.md)).

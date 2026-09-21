@@ -7,7 +7,7 @@ Distributed inference over commodity endpoints assumes **hostile networks** and 
 | Threat | Mitigation |
 |--------|------------|
 | Eavesdropping on prompts/responses | TLS 1.3 everywhere; mTLS on fabric |
-| Rogue worker joining pool | Enrollment with PKI; optional attestation |
+| Rogue worker joining pool | Enrollment with PKI; **optional** TEE/attestation (TDX/SGX) for high-assurance tenants |
 | Stolen API key at connector | Short-lived tokens, OIDC, rate limits, IP allow lists |
 | Prompt injection to exfiltrate shards | Workers never execute client-supplied code; static graphs only |
 | Denial of service | Quotas, backpressure, circuit breakers |
@@ -29,7 +29,7 @@ Distributed inference over commodity endpoints assumes **hostile networks** and 
 ## Network
 
 - Default: **no public worker ports**; workers initiate outbound to coordinator (NAT-friendly).
-- **WAN mesh (v1):** treat inter-site links as untrusted; mTLS on all fabric hops; site labels for audit. Optional **mesh VPN** (WireGuard/Tailscale) documented in [`DEPLOYMENT-PROFILES.md`](DEPLOYMENT-PROFILES.md), not mandatory in core.
+- **WAN mesh (v1):** default **TLS-only over Internet**; treat all links as untrusted; mTLS on every hop. **VPN overlay optional** (WireGuard/Tailscale/SD-WAN) per [`DEPLOYMENT-PROFILES.md`](DEPLOYMENT-PROFILES.md)—not required for core operation.
 - **APIM path:** terminate customer TLS at APIM; mTLS or private link from APIM to connector/coordinator; subscription keys ≠ worker enrollment certs.
 
 ## Proxy / corporate egress
@@ -53,5 +53,5 @@ HTTPS_PROXY=http://proxy-us.intel.com:911
 ## Roadmap
 
 - [ ] Formal threat model diagram
-- [ ] Attestation policy (optional TDX/SGX)
+- [ ] Optional attestation policy pack (TDX/SGX) for tenants that enable it
 - [ ] FIPS-compliant cipher suites profile for regulated customers
