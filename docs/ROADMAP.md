@@ -1,79 +1,64 @@
 # Roadmap
 
-Aligned with [`FINDINGS.md`](FINDINGS.md): **collaborative + workload distribution first**, **LAN model sharding second**, **broad federation third**. Locked decisions: [`DECISIONS.md`](DECISIONS.md).
+**North star:** **one large LLM sharded across Intel edge devices** — [`MISSION.md`](MISSION.md). Not a fleet-of-full-small-models product.
 
 ## Phase 0 — Design
 
-- [x] Repository scaffold and architecture docs
-- [x] Three-problem framework and five execution modes documented
-- [x] LAN + WAN scope (WAN = replicas/routing default; LAN = sharding)
-- [x] Reference model **Qwen2.5-32B-Instruct**
-- [ ] ZDLI / EIFP control message schema v0.1
-- [ ] Capability manifest schema v0.1
-- [ ] Shard manifest for Phase 2 LAN demos
+- [x] Mission, architecture, decisions
+- [x] Reference **Qwen2.5-32B-Instruct**
+- [ ] ZDLI / EIFP control + data message schema v0.1
+- [ ] Shard manifest v0.1 (pipeline stages for 32B Q4)
 
-## Phase 1 — Useful product (ship before hardest science)
+## Phase 1 — Sharded inference MVP (edge, minimal cloud)
 
-Goal: Lower cloud usage and plug into **Cursor + APIM** with minimal client changes.
+**Fabric (core)**
+
+- [ ] Coordinator: enrollment, **shard graph**, session routes, streaming merge
+- [ ] **Pipeline sharding** — llama.cpp RPC, **≥2 workers**, **Qwen2.5-32B** no full copy on any one node
+- [ ] OpenVINO worker: at least one **stage** of same logical model
+- [ ] Signed capability manifests (RAM, RTT, runtime)
+- [ ] LAN lab demo: end-to-end sharded generation
 
 **Gateway & connectors**
 
-- [ ] `connectors/openai-gateway/` — chat, models, embeddings (OpenAI-compatible)
-- [ ] `connectors/enterprise-apim/` — policies, upstream, tenant mapping
-- [ ] Cloud fallback and policy routing hooks (mode 5 baseline)
+- [ ] `connectors/openai-gateway/` — one model id → sharded backend
+- [ ] `connectors/enterprise-apim/` — enterprise ingress to same gateway
+- [ ] Cursor + APIM E2E on **sharded** reference model
+- [ ] Cloud fallback **optional**, off by default in lab configs
 
-**Workers & runtime**
+**WAN (same model, many sites)**
 
-- [ ] OpenVINO / **OVMS** worker with OpenAI-compatible northbound where applicable
-- [ ] llama.cpp worker for **replica** mode (1B–8B + dev paths)
-- [ ] Signed **capability discovery** and fleet telemetry
-- [ ] Windows and Linux worker packages (lab)
-
-**Intelligence**
-
-- [ ] Semantic / policy request routing (easy → SLM replica, hard → larger local or cloud)
-- [ ] Local RAG + embeddings tier (NPU/GPU/CPU per manifest)
+- [ ] Multi-site workers enrolled over **TLS-only** mesh
+- [ ] Shard placement with **admission control** (reject graphs that fail ITL SLA)
+- [ ] Activation compression on slow links (initial prototype)
 
 **Ops**
 
-- [ ] Managed coordinator MVP (enrollment, health, site labels)
-- [ ] WAN: **TLS-only** multi-site **replica** pools + routing (not layer pipeline default)
-- [ ] Docker Compose / lab scripts; Intel proxy guide
+- [ ] Windows + Linux workers; Intel proxy guide; lab compose/scripts
 
-**Demos**
+## Phase 2 — Efficiency & resilience on edge
 
-- [ ] Cursor → gateway → local replica pool
-- [ ] APIM → gateway → same fabric
-- [ ] Reference **Qwen2.5-32B** on **single** high-RAM node or approved cloud fallback until Phase 2 LAN shard
+- [ ] Topology-aware shard placement (BW, ISA, GPU/NPU)
+- [ ] QUIC data plane; redundant shard replicas; failure rerouting
+- [ ] KV affinity; continuous batching across stages where safe
+- [ ] Speculative decode (draft helper + sharded verifier) — still one logical 32B
+- [ ] Full [`BENCHMARKS.md`](BENCHMARKS.md) harness + admission automation
 
-## Phase 2 — LAN-scale large model (controlled 2–8 nodes)
+## Phase 3 — Hardening
 
-Goal: **Model-distributed** inference where admission control says it wins.
+- [ ] mTLS rotation, tenancy, audit (APIM alignment)
+- [ ] Tensor/expert parallel on qualifying LANs
+- [ ] Optional attestation packs
 
-- [ ] Transformer-block pipeline sharding (llama.cpp RPC + OpenVINO paths)
-- [ ] Topology-aware placement (RAM, BW, ISA, GPU/NPU)
-- [ ] QUIC (or prioritized) activation transport; activation compression
-- [ ] Redundant shard placement (EASTER-style recovery)
-- [ ] KV-cache affinity; continuous batching
-- [ ] Speculative distributed decoding (mode 4) — Intel CPU/GPU/NPU draft/verify
-- [ ] Failure rerouting; benchmark harness ([`BENCHMARKS.md`](BENCHMARKS.md))
-- [ ] E2E: **Qwen2.5-32B-Instruct** pipeline on LAN lab
+## Phase 4 — Ecosystem
 
-## Phase 3 — Production hardening
-
-- [ ] mTLS rotation, quotas, audit (APIM + coordinator)
-- [ ] Benchmark-driven **admission control** in production scheduler
-- [ ] Optional attestation policy packs
-- [ ] Tensor/expert parallel on qualifying LANs only
-
-## Phase 4 — Broad federated fabric (after Phase 2 proves LAN)
-
-- [ ] Intermittent endpoints, multi-org trust, Sybil resistance
-- [ ] Economic / metering models for shared capacity
-- [ ] Byzantine-result detection research
-- [ ] MCP connector for tools (not sharding plane)
-- [ ] Gemini hybrid docs; Windows always-on service
+- [ ] MCP for tools (not sharding wire)
+- [ ] Federation research (intermittent nodes) — after LAN/WAN sharding proven
+- [ ] Additional worker backends
 
 ## Success metrics
 
-See [`BENCHMARKS.md`](BENCHMARKS.md): TTFT, ITL p95/p99, bytes/token, joules/token, cloud tokens avoided, recovery time—not aggregate TPS alone.
+- **Functional:** 32B-class model completes on cluster where **each node fails alone**
+- **Edge:** % tokens generated without cloud
+- **Latency:** TTFT / ITL p95 on LAN vs WAN shard graphs
+- **Efficiency:** bytes activation per token; joules per token

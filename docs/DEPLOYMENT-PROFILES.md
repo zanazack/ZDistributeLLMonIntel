@@ -1,46 +1,47 @@
 # Deployment profiles — LAN lab and WAN mesh
 
-v1 supports **both** profiles. They differ in **which execution modes** are default ([`ARCHITECTURE.md`](ARCHITECTURE.md)).
+Both profiles serve **model-distributed** inference: **one LLM, many shards**. Neither profile prioritizes “full small model on every PC.”
 
 ## LAN lab profile
 
-**Use when:** Store, branch, office, classroom, lab, or home LAN — RTT between nodes typically **&lt; 2 ms**, bandwidth **≥ 1 GbE** (10 GbE preferred for 32B pipeline).
+**Use when:** Office, store backroom, classroom, lab, home — low RTT between shards.
 
-| Default modes | 1 (replicas), 5 (routing), **2–4 when admitted** |
-| Model-distributed | **Yes** — primary home for **Qwen2.5-32B** pipeline and speculative verify |
-| Discovery | Static config or mDNS on VLAN |
-| Security | mTLS; optional air-gap |
-
-**Phase 2 target:** 2–8 Intel hosts, pipeline or speculative paths with benchmark proof ([`BENCHMARKS.md`](BENCHMARKS.md)).
+| Attribute | Target |
+|-----------|--------|
+| RTT between stages | &lt; 2 ms typical |
+| Bandwidth | ≥ 1 GbE (10 GbE for 32B pipeline) |
+| Sharding | **Pipeline default** — 2–8 nodes, **Qwen2.5-32B** reference |
+| Goal | Prove **no single node** holds full model; measure ITL |
 
 ## WAN mesh profile
 
-**Use when:** Workers span sites over **TLS-only Internet** (VPN **optional** overlay).
+**Use when:** Edge nodes across sites must **collectively** host one large model (aggregate RAM across geography).
 
-| Default modes | **1 (replicas per site)**, **5 (semantic/policy routing)** |
-| Model-distributed pipeline | **Not default** — autoregressive ITL penalizes slow hops; only with admission control + compression + explicit SLA |
-| Topology | Site-local replica pools; cross-site **routing**, not layer chaining on hot path |
-| Discovery | Coordinator enrollment; outbound worker connections |
-| Security | mTLS mandatory; private trust domain for sensitive prompts |
+| Attribute | Target |
+|-----------|--------|
+| Default transport | **TLS-only Internet**, mTLS |
+| VPN | **Optional** overlay — not required |
+| Sharding | **Same logical model** — minimize **cross-WAN hops** per token; prefer dense sub-pipelines per site + limited cross-site stages |
+| Admission | **Required** — drop or shrink graph if RTT makes ITL unacceptable |
+| Not default | WAN is not an excuse to run **independent full SLMs** per site as the product story |
 
-### WAN scheduling rules
+### WAN placement rules
 
-1. Route requests to **best site replica** or SLM tier by latency, load, and policy.
-2. **Do not** place sequential pipeline stages across high-RTT links unless benchmarks show net ITL win.
-3. **Affinity** for site-local KV when using single-node large models per site.
-4. **Degrade:** queue, SLM, or cloud fallback — never silent quality collapse.
+1. Place as many **consecutive layers** as possible **within one site** before crossing WAN.
+2. Compress activations on inter-site links.
+3. **Do not** substitute cloud for steady-state if edge graph is viable (cloud = optional fallback).
 
-## Shared requirements
+## Shared
 
-- Catalog includes **≥10B** class; reference **[Qwen2.5-32B-Instruct](REFERENCE-MODEL.md)**.
-- Workers: **llama.cpp**, **OpenVINO/OVMS**, extensible manifests.
-- Clients: **Cursor** + **APIM** golden paths.
+- Reference model: [`REFERENCE-MODEL.md`](REFERENCE-MODEL.md)
+- Runtimes: llama.cpp RPC, OpenVINO/OVMS
+- Clients: Cursor, APIM
 
-## Intel corporate network
+## Intel proxy
 
 ```powershell
 $env:HTTP_PROXY="http://proxy-us.intel.com:911"
 $env:HTTPS_PROXY="http://proxy-us.intel.com:911"
 ```
 
-Control-plane downloads via proxy; **same-LAN data plane** should use direct paths when policy allows.
+Control plane via proxy; prefer direct LAN paths for activation traffic inside a site.

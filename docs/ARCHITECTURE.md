@@ -1,161 +1,126 @@
 # Architecture — Intel Endpoint LLM Fabric
 
-**ZDistributeLLMonIntel** implements an **Intel Endpoint LLM Fabric**: northbound compatibility for existing AI tools, southbound workers on Intel endpoints, and a purpose-built **ZDLI / Endpoint Inference Fabric Protocol (EIFP)** for control and (when needed) activation transport.
+**ZDistributeLLMonIntel** runs **one large LLM** across many **Intel edge** workers by **model partitioning**. Northbound: familiar APIs. Southbound: **shards + ZDLI/EIFP**.
 
-Research basis: [`FINDINGS.md`](FINDINGS.md). Locked product choices: [`DECISIONS.md`](DECISIONS.md).
+Mission: [`MISSION.md`](MISSION.md). Decisions: [`DECISIONS.md`](DECISIONS.md). Research: [`FINDINGS.md`](FINDINGS.md).
 
-## Three problems (one fabric)
+## Primary vs adjacent problems
 
-| # | Name | Default use |
-|---|------|-------------|
-| 1 | **Collaborative / hierarchical** | **Default** — SLM routing, RAG, drafts, easy vs hard policy |
-| 2 | **Workload-distributed** | Full small/medium models per endpoint; scale **concurrency** across fleet |
-| 3 | **Model-distributed** | Split **one** large model (e.g. Qwen2.5-32B) — **LAN clusters only** unless admission control accepts WAN hops |
-
-**Hybrid rule:** WAN mesh emphasizes modes **1–2** (replicas + routing across sites). Mode **3** (pipeline / tensor / expert parallel) targets **latency-bounded LAN** (2–8 nodes) first.
+| Class | Description | This repo |
+|-------|-------------|-----------|
+| **Model-distributed** | Split **one** LLM; each device runs **part** of the graph; activations/KV cross the wire | **Core — 100% focus** |
+| **Collaborative / hierarchical** | Draft, verify, RAG, routing helpers | **Optional accelerators** on-edge only |
+| **Workload-distributed** | **Full** small model per endpoint; scheduler picks a machine | **Out of primary scope** — does not increase per-request model size |
 
 ## Design principles
 
-1. **Client compatibility first** — OpenAI-compatible chat, embeddings, reranking, model list; provider adapters where needed; optional localhost desktop proxy ([`INTEGRATIONS.md`](INTEGRATIONS.md)).
-2. **Useful product before hardest science** — Ship gateway, OVMS/OpenVINO/llama.cpp workers, replicas, semantic routing, cloud fallback **before** optimizing public federated swarms ([`ROADMAP.md`](ROADMAP.md)).
-3. **Admission control** — Add a node to a hot path only if benchmarks show net win on ITL/TTFT vs bytes and recovery cost ([`BENCHMARKS.md`](BENCHMARKS.md)).
-4. **Fail closed on security** — Private trust domain for sensitive inference; mTLS baseline; optional attestation ([`SECURITY.md`](SECURITY.md)).
-5. **Measured placement** — Schedules from **signed capability manifests** and live telemetry, not TOPS labels alone.
-6. **MCP is not the data plane** — MCP for tools, retrieval, enterprise context; **not** for activations or distributed KV sync.
+1. **One logical model, many physical shards** — Clients request `intel-distributed-qwen2.5-32b-instruct-q4`; coordinator assembles a **pipeline/tensor/expert graph** no single node could run alone.
+2. **Edge-first, least cloud** — Steady state on Intel fleet; cloud fallback **break-glass** only ([`INTEGRATIONS.md`](INTEGRATIONS.md)).
+3. **Client compatibility** — OpenAI-compatible gateway; Cursor + APIM golden paths.
+4. **Admission control** — Add shard hops (especially WAN) only if ITL/TTFT still meets SLA ([`BENCHMARKS.md`](BENCHMARKS.md)).
+5. **Measured placement** — Signed capability manifests (RAM, BW, RTT, ISA, runtime).
+6. **MCP ≠ data plane** — MCP for tools/context; **ZDLI** moves activations and KV.
 
 ## Northbound stack
 
 ```
-Cursor / agent framework / OpenAI-compatible client
+Cursor / agent / OpenAI-compatible client
         |
-OpenAI-compatible inference API  (/v1/chat/completions, models, embeddings, …)
+OpenAI-compatible API (one model id = one sharded run)
         |
-Intel Endpoint LLM Gateway  (connectors/openai-gateway + enterprise APIM)
-   /    |    \
-Local   Distributed   Approved cloud
-replica fabric         fallback
-pool    (LAN modes 2–4)
+Intel Endpoint LLM Gateway
         |
-Encrypted fabric protocol (ZDLI / EIFP)
+Coordinator  (shard registry, route, leases, recovery)
         |
-Intel endpoint workers  (llama.cpp, OpenVINO/OVMS, …)
+ZDLI / EIFP  (mTLS; QUIC/gRPC data plane)
+        |
+Workers: shard 0 → shard 1 → … → shard N
+        (llama.cpp RPC, OpenVINO/OVMS, …)
 ```
 
 ## Southbound: capability manifest
 
-Each worker publishes a **signed** manifest (illustrative fields):
+Workers advertise what **shard** they can host:
 
-- CPU model and ISA (AMX, AVX-512, …)
-- System RAM and **available** RAM
-- GPU type and VRAM; NPU generation and supported ops
-- Supported precisions and runtimes (`llama.cpp-rpc`, `openvino`, `ovms`, …)
-- Measured memory bandwidth; thermal/power policy
-- Network RTT, jitter, throughput, loss (to coordinator/peers)
-- Cached model shards; KV-cache capacity
-- Attestation/trust status; load; expected availability window
+- Available RAM/VRAM for **weight shard** + KV budget
+- CPU ISA, GPU/NPU ops, precisions, runtime id
+- Network RTT/jitter/throughput to peers (critical for multi-hop graphs)
+- Cached shard ids; thermal/power; trust/attestation status
 
-The scheduler builds an **execution graph** from measurements plus policy—not static homogeneity assumptions.
+Scheduler places **contiguous blocks** (pipeline), **tensor groups** (LAN), or **experts** (MoE) so the **sum of memory** across the path ≥ model requirement.
 
-## Five execution modes
+## Execution modes (core first)
 
-| Mode | Name | When |
+| Mode | Name | Role |
 |------|------|------|
-| **1** | **Independent replicas** | Each endpoint runs a complete ~1B–8B (or fit-sized) model; route for concurrency — simplest fleet win |
-| **2** | **Pipeline sharding** | Contiguous blocks on different devices (Petals / MDI-LLM style); no single device holds full **≥16B** reference |
-| **3** | **Tensor / expert parallel** | Tight LAN only; high sync frequency |
-| **4** | **Speculative distributed decoding** | Local draft model; distributed or LAN verifier batch (EAGLE-style paths on Intel CPU/GPU/NPU) |
-| **5** | **Semantic / policy routing** | Easy → SLM on idle endpoint; hard → LAN cluster **Qwen2.5-32B** fabric or approved cloud |
+| **A** | **Pipeline sharding** | **Default v1** — transformer blocks on different devices (MDI-LLM / Petals / llama.cpp RPC style) |
+| **B** | **Tensor / expert parallel** | High-bandwidth LAN; MoE or TP when sync cost acceptable |
+| **C** | **Speculative distributed decode** | Optional — small **draft** on one edge node, **verifier shards** on fabric (still one logical large model) |
+| **D** | **Disaggregated prefill/decode** | When benchmarks show KV transfer wins on **this** LAN |
 
-Dynamic split (from dynamic split computing literature) chooses among: local-only SLM; local prefill + remote decode; draft + verify; full pipeline; RAG local + gen remote; cloud fallback.
+**Not primary:** “Mode 1 independent replicas” of full small LLMs across the fleet — use only for **lab smoke**, embeddings, or draft helpers tied to modes A–C.
 
-## Roles
+## Partitioning model into “tasks”
 
-### Gateway (connector)
+Conceptually each **forward step** of a request becomes a **task chain**:
 
-- Terminates client TLS; OpenAI-compatible surface.
-- Tenant policy, metering, **cloud fallback**.
-- Does **not** require clients to understand sharding.
+1. **Load** — ensure shard weights resident (may overlap with prior session).
+2. **Compute** — matmul/attn on local shard; produce activations.
+3. **Transfer** — send activation (optionally compressed) to next shard hop.
+4. **Decode stream** — final shard emits tokens to gateway.
 
-### Coordinator (control plane)
+Coordinator tracks **task graph** per session; workers never see the full weights.
 
-- Enrollment, identity, capability discovery, model/shard registry.
-- Health, thermal, load, **placement**, route creation, lease renewal, failure recovery.
-- **Managed coordinator** for enterprise; optional DHT-style discovery for decentralized labs (later).
-- Admission control gates for mode 3 paths.
+## Parallelism detail
 
-### Worker
+| Strategy | Edge use |
+|----------|----------|
+| Pipeline parallel | **First target** — 2–8 Intel nodes, **Qwen2.5-32B** Q4 GGUF or OpenVINO stages |
+| Tensor parallel | Same LAN, low RTT |
+| Expert parallel | MoE models when adopted |
 
-- Runs full model (mode 1) or shard (modes 2–3) or draft/verify role (mode 4).
-- Sandboxed; no arbitrary client code; signed graph updates only.
+**LAN lab:** primary proving ground for modes A–B.
 
-## Parallelism (mode 2–3 detail)
-
-| Strategy | When | Tradeoff |
-|----------|------|----------|
-| Pipeline parallel | LAN, memory-bound **≥10B** | Pipeline bubbles; lower sync than TP |
-| Tensor parallel | LAN, low RTT, high bisection BW | Frequent all-reduce |
-| Expert parallel (MoE) | MoE models | Load imbalance |
-| Prefill/decode disaggregation | Measured net benefit only | KV transfer may dominate on PC LANs |
-
-**Reference LAN target:** 2–8 Intel systems, **Qwen2.5-32B-Instruct**, Q4 GGUF or OpenVINO export ([`REFERENCE-MODEL.md`](REFERENCE-MODEL.md)).
-
-**WAN default:** TLS-only mesh ([`DEPLOYMENT-PROFILES.md`](DEPLOYMENT-PROFILES.md)) for **replicas + policy routing**; cross-site **pipeline** only with explicit SLA + compression and expected ITL tradeoffs.
+**WAN mesh:** **same model-distributed goal** — shards may live in **different sites** if admission control accepts RTT; prefer **fewer cross-WAN hops**, activation compression, and **site-dense** sub-pipelines ([`DEPLOYMENT-PROFILES.md`](DEPLOYMENT-PROFILES.md)).
 
 ## Protocol stack (ZDLI / EIFP)
 
 ### Control plane
 
-Enrollment, capability discovery, shard registry, health/thermal, placement, routes, leases, failure recovery, policy, usage accounting.
+Enrollment, shard registry, graph publish, health, placement, routes, failure rerouting, policy, metering.
 
-**Transports:** gRPC over mTLS (proxy-friendly); HTTP/3 where UDP allowed; optional DHT discovery (Phase 3).
+Transports: gRPC/mTLS; HTTP/3 where allowed.
 
-### Data plane (modes 2–4)
+### Data plane
 
-Prototype candidates:
+Activations, KV segments, speculative batches, cancel, heartbeat, idempotent request ids.
 
-- **QUIC** — encrypted multiplexed streams, migration, reduced HOL blocking
-- **gRPC** over HTTP/2 or HTTP/3 for RPC control
-- **Same-machine** — shared memory, oneAPI IPC
-- **Workstation clusters** — optional RDMA-class transport
-- **Activation compression / quantization** before WAN or slow hops
-- **Priority streams** — token-path activations vs shard load / telemetry
+Transports: QUIC preferred for multiplexed streams; LAN may use TCP; co-located shards use shared memory / oneAPI IPC.
 
-Message types: activation tensors, KV segments, speculative token batches, routing metadata, cancellation, heartbeat, replay-safe request IDs.
+## Worker runtimes
 
-## Worker runtime backends
+| Runtime | Sharding |
+|---------|----------|
+| **llama.cpp RPC** | Multi-node GGUF split — **primary Phase 1 path** |
+| **OpenVINO / OVMS** | IR stages per device |
+| **Extensible** | Manifest-driven plugins |
 
-| Runtime | Artifacts | Typical mode |
-|---------|-----------|--------------|
-| **OpenVINO / OVMS** | IR, OpenAI-compatible server | 1, 5; enterprise northbound |
-| **llama.cpp RPC** | GGUF | 1–2, 4 on CPU/AMX |
-| **IPEX / future** | PyTorch, vLLM-CPU, … | Extensible via manifest |
+Homogeneous runtime per graph in early releases.
 
-Homogeneous runtime per pipeline in early Phase 2; heterogeneous stages remain research.
+## Reference flow — sharded chat (streaming)
 
-## Reference flows
+1. Client → Gateway: `POST /v1/chat/completions`, model = reference logical id.
+2. Gateway → Coordinator: create session on **shard graph** for that model.
+3. Prompt tokens enter **shard 0**; activations flow **0→…→k**; KV stays on workers per policy.
+4. Shard **k** streams tokens → Gateway → client SSE.
+5. On worker loss: coordinator **reroutes** using redundant shard policy (Phase 2+, EASTER-inspired).
 
-### Chat (mode 5 → mode 1 replica)
+## Model publish
 
-1. Client → Gateway → Coordinator classifies difficulty.
-2. Route to local SLM replica or queue for larger model.
-3. Stream tokens; log cloud-fallback decision if policy triggers.
+Signed manifest: per-shard hashes, stage boundaries, runtime, min cluster RAM sum.
 
-### Chat (mode 2 LAN, reference 32B)
+## Trust & models
 
-1. Client → Gateway → Coordinator admission-checks pipeline `W0→…→Wk`.
-2. Activations over LAN data plane; KV affinity on workers.
-3. Final stage streams to gateway.
+Optional attestation; default mTLS. Open-weight on fabric only — [`INTEGRATIONS.md`](INTEGRATIONS.md).
 
-### Model publish
-
-Signed manifest, per-shard hashes, push to workers, ready state.
-
-## Trust and models (locked)
-
-- Attestation **optional**; default PKI + mTLS.
-- WAN **TLS-only**; VPN **optional**.
-- Open-weight catalog only on fabric; proprietary APIs as **upstream** ([`INTEGRATIONS.md`](INTEGRATIONS.md)).
-
-## Related code / papers
-
-See comparison table in [`FINDINGS.md`](FINDINGS.md). This repo is **not** a fork of Petals or OVMS; it composes them as worker backends where appropriate.
+Reference weights: [`REFERENCE-MODEL.md`](REFERENCE-MODEL.md).

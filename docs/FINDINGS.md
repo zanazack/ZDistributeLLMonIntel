@@ -2,9 +2,19 @@
 
 Synthesis of literature and systems review that grounds **ZDistributeLLMonIntel**. This is the technical narrative behind [`ARCHITECTURE.md`](ARCHITECTURE.md) and [`ROADMAP.md`](ROADMAP.md).
 
-## Executive conclusion
+## Executive conclusion (literature)
 
-The “distributed LLM on Intel PCs” idea hides **three distinct problems**. The fabric should implement a **hybrid of all three**, with **collaborative / hierarchical inference as the default**, and **cross-device model sharding only inside latency-bounded clusters** (store, branch, office, classroom, lab, home LAN). Wide-area, layer-by-layer autoregressive inference is possible but every slow hop shows up in **inter-token latency**.
+The “distributed LLM on Intel PCs” idea hides **three distinct problems** (model-distributed, workload-distributed, collaborative). Industry and academic systems often blend them.
+
+## Product focus for **this repository**
+
+**ZDistributeLLMonIntel** is **not** primarily workload-distributed (a **complete** small LLM on every PC for concurrency). It is **edge-first model-distributed inference**: **one large LLM** partitioned across many Intel devices that **cannot** load the full model alone, with **minimum cloud dependency**. See [`MISSION.md`](MISSION.md).
+
+Engineering notes from literature still apply:
+
+- **Cross-device sharding** is essential when memory per node is insufficient (MDI-LLM, Petals, EdgeShard, Parallax).
+- **WAN layer hops** hurt inter-token latency — use admission control and site-dense sub-pipelines ([`DEPLOYMENT-PROFILES.md`](DEPLOYMENT-PROFILES.md)).
+- **Collaborative** patterns (draft/verify, RAG) may **accelerate** a sharded large model but do not replace partitioning.
 
 | Problem | What it is | Fleet effect |
 |---------|------------|--------------|
