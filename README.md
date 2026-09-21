@@ -74,8 +74,7 @@ Details: [`docs/DECISIONS.md`](docs/DECISIONS.md), [`docs/DEPLOYMENT-PROFILES.md
 
 1. Read [`docs/DECISIONS.md`](docs/DECISIONS.md), [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), and [`docs/INTEGRATIONS.md`](docs/INTEGRATIONS.md).
 2. For LAN vs WAN setup, see [`docs/DEPLOYMENT-PROFILES.md`](docs/DEPLOYMENT-PROFILES.md).
-3. Track delivery in [`docs/ROADMAP.md`](docs/ROADMAP.md).
-3. Watch this repo for coordinator/worker and connector milestones.
+3. Track delivery and milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ## License
 
