@@ -6,22 +6,24 @@
 
 - [x] Mission, architecture, decisions
 - [x] Reference **Qwen2.5-32B-Instruct**
-- [ ] ZDLI / EIFP control + data message schema v0.1
-- [ ] Shard manifest v0.1 (pipeline stages for 32B Q4)
+- [x] ZDLI control plane v0.1 (HTTP API + OpenAPI stub)
+- [x] Python coordinator, gateway, worker agent (in-memory MVP)
+- [ ] Shard manifest v0.1 (signed hashes per stage)
+- [ ] Data plane (activations over QUIC)
 
 ## Phase 1 — Sharded inference MVP (edge, minimal cloud)
 
 **Fabric (core)**
 
-- [ ] Coordinator: enrollment, **shard graph**, session routes, streaming merge
-- [ ] **Pipeline sharding** — llama.cpp RPC, **≥2 workers**, **Qwen2.5-32B** no full copy on any one node
+- [x] Coordinator: enrollment, **shard graph**, session → ingress URL
+- [ ] **Pipeline sharding** — llama.cpp RPC lab proof, **≥2 workers**, **Qwen2.5-32B** no full copy on any one node
 - [ ] OpenVINO worker: at least one **stage** of same logical model
 - [ ] Signed capability manifests (RAM, RTT, runtime)
 - [ ] LAN lab demo: end-to-end sharded generation
 
 **Gateway & connectors**
 
-- [ ] `connectors/openai-gateway/` — one model id → sharded backend
+- [x] `connectors/openai-gateway/` — `zdli.gateway` proxies to sharded ingress
 - [ ] `connectors/enterprise-apim/` — enterprise ingress to same gateway
 - [ ] Cursor + APIM E2E on **sharded** reference model
 - [ ] Cloud fallback **optional**, off by default in lab configs
