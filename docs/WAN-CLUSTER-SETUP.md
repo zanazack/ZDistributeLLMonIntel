@@ -16,16 +16,16 @@ Remote machines **do not** need inbound ports opened. Each **ZDL Edge** client m
 
 You **do not** SSH from the control PC into corporate PCs for registration. Install **ZDL Edge** on each remote system; paste the same **Coordinator URL** and **enroll token** from the dashboard.
 
-### What you must expose (control PC or cloud hop)
+### Exposure via tunnel (recommended for your setup)
 
-The **control PC** (or a small cloud VM running Control Center) must be reachable from the Internet on:
+You do **not** open inbound firewall ports on the control PC. Use **Cloudflare quick tunnels** (or a named tunnel) so edge PCs reach you on **outbound HTTPS**.
 
-| Port | Service |
-|------|---------|
-| **7443** | Coordinator + dashboard (`/ui`) |
-| **8080** | OpenAI gateway (optional on control PC if you only use Cursor there locally) |
+**→ Follow [`TUNNEL-SETUP.md`](TUNNEL-SETUP.md) step by step.**
 
-Corporate networks usually allow **outbound** HTTPS to approved hosts. Publish a **public HTTPS URL** (DNS or tunnel) pointing to your control machine.
+| Local port | Tunnel | Remote edge uses |
+|------------|--------|------------------|
+| 7443 | Required | Coordinator URL = `https://….trycloudflare.com` |
+| 8080 | Optional | Only if Cursor/APIM runs off the control PC |
 
 ## Step 1 — Control PC (this computer)
 
@@ -53,24 +53,14 @@ Start:
 
 Open **http://127.0.0.1:7443/ui**
 
-### Expose to the Internet (pick one)
-
-**A — IT-approved reverse proxy / load balancer**  
-Forward `https://zdl.yourcompany.com` → control PC `7443` and `8080`.
-
-**B — Quick lab tunnel (Cloudflare)**  
-Install [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/), then:
+### Expose with tunnel
 
 ```powershell
-cloudflared tunnel --url http://127.0.0.1:7443
+.\scripts\install-cloudflared.ps1
+.\scripts\start-wan-tunnels.ps1
 ```
 
-Copy the printed `https://….trycloudflare.com` URL → paste into Control Center **Public coordinator URL** (add `/zdl/v1` base: use root `https://xxx.trycloudflare.com` — edge uses `/zdl/v1/workers/register` on that host).
-
-Run a **second** tunnel for port 8080 if Cursor runs off-machine.
-
-**C — Azure / AWS small VM**  
-Run Control Center on a VM with public IP; lock down admin tokens.
+Details: **[`TUNNEL-SETUP.md`](TUNNEL-SETUP.md)**
 
 In the dashboard **WAN linking** section, save:
 

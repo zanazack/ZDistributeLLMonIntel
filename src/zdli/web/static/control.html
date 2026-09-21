@@ -10,15 +10,20 @@
   <p class="note">Run on your <strong>control PC</strong>. Remote Windows/Ubuntu nodes install <strong>ZDL Edge</strong> and connect <strong>outbound</strong> to the public coordinator URL (no inbound access to corporate PCs required).</p>
 
   <div class="card">
+    <h2>Tunnel mode (Cloudflare quick tunnel)</h2>
+    <p class="note">Run on control PC: <code>.\scripts\start-wan-tunnels.ps1</code> (or <code>expose-wan-tunnel.ps1</code> for coordinator only). Paste the printed <strong>https://….trycloudflare.com</strong> URLs below — <strong>no :7443 port</strong> on the tunnel URL. Full steps: <code>docs/TUNNEL-SETUP.md</code></p>
+  </div>
+
+  <div class="card">
     <h2>WAN linking (copy to each edge node)</h2>
     <p>Coordinator URL (HTTPS): <code id="pubCoord">…</code></p>
     <p>Gateway URL (Cursor): <code id="pubGw">…</code></p>
     <p>Enroll token: <code id="enrollHint">…</code></p>
     <p>Workers: <span id="counts">0/0</span></p>
-    <label>Public coordinator URL (after tunnel or DNS)</label>
-    <input id="inCoord" placeholder="https://your-tunnel.example.com:7443" />
-    <label>Public gateway URL</label>
-    <input id="inGw" placeholder="https://your-tunnel.example.com:8080" />
+    <label>Public coordinator URL (tunnel T1 → local :7443)</label>
+    <input id="inCoord" placeholder="https://abc-def.trycloudflare.com" />
+    <label>Public gateway URL (tunnel T2 → local :8080, or http://127.0.0.1:8080 if Cursor is local)</label>
+    <input id="inGw" placeholder="https://xyz-uvw.trycloudflare.com" />
     <p><button id="savePublic">Save public URLs</button>
     <button class="secondary" id="bootstrap">Auto-build shard graph from workers</button></p>
     <p id="bootMsg" class="note"></p>

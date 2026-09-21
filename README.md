@@ -45,7 +45,8 @@ Client → Gateway → Coordinator → [Worker shard 0 → … → shard N] → 
 | **Control Center** (UI + coordinator + gateway) | `zdl-control-center` | **This PC** — [`docs/WAN-CLUSTER-SETUP.md`](docs/WAN-CLUSTER-SETUP.md) |
 | **Edge Client** (UI + outbound agent) | `zdl-edge` | Each remote Windows/Ubuntu Intel PC |
 
-Install: [`install/windows/`](install/windows/) · [`install/ubuntu/`](install/ubuntu/)
+Install: [`install/windows/`](install/windows/) · [`install/ubuntu/`](install/ubuntu/)  
+**WAN via tunnel:** [`docs/TUNNEL-SETUP.md`](docs/TUNNEL-SETUP.md) → `.\scripts\start-wan-tunnels.ps1`
 
 ## Getting started
 
