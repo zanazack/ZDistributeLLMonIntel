@@ -1,0 +1,83 @@
+openapi: 3.1.0
+info:
+  title: ZDLI Connector Gateway (OpenAI-compatible subset)
+  version: 0.1.0
+  description: |
+    Stub for client-facing API. Implemented by the connector layer;
+    coordinator may expose a subset internally.
+servers:
+  - url: https://127.0.0.1:8080
+paths:
+  /health:
+    get:
+      summary: Liveness for load balancers and IDE checks
+      responses:
+        "200":
+          description: OK
+  /v1/models:
+    get:
+      summary: List logical models available on the Intel fabric
+      responses:
+        "200":
+          description: Model list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object:
+                    type: string
+                    example: list
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Model"
+  /v1/chat/completions:
+    post:
+      summary: Chat completions with optional streaming
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatCompletionRequest"
+      responses:
+        "200":
+          description: Completion or SSE stream
+components:
+  schemas:
+    Model:
+      type: object
+      properties:
+        id:
+          type: string
+          example: intel-distributed-llama-70b-q4
+        object:
+          type: string
+          example: model
+        owned_by:
+          type: string
+          example: zdistribute-llm-on-intel
+    ChatCompletionRequest:
+      type: object
+      required:
+        - model
+        - messages
+      properties:
+        model:
+          type: string
+        messages:
+          type: array
+          items:
+            type: object
+            properties:
+              role:
+                type: string
+                enum: [system, user, assistant, tool]
+              content:
+                type: string
+        stream:
+          type: boolean
+          default: false
+        max_tokens:
+          type: integer

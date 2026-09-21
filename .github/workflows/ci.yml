@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify core docs and OpenAPI stub exist
+        run: |
+          test -f README.md
+          test -f docs/ARCHITECTURE.md
+          test -f docs/INTEGRATIONS.md
+          test -f protocols/openapi/coordinator-gateway.yaml
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Parse OpenAPI stub (YAML)
+        run: |
+          pip install pyyaml
+          python -c "import yaml; yaml.safe_load(open('protocols/openapi/coordinator-gateway.yaml'))"
