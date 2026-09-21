@@ -26,7 +26,8 @@ v1 supports **both** profiles under one coordinator model. Workers declare a **s
 | Topology | **Site-local pipelines** with optional **cross-site** shards only when bandwidth SLA met |
 | Discovery | Coordinator-centric enrollment; no reliance on broadcast |
 | Security | mTLS mandatory; workers **outbound-only** to coordinator where possible |
-| Optional overlay | WireGuard / Tailscale / corporate SD-WAN — documented, not required in core |
+| Default transport | **TLS-only Internet** — mTLS between workers and coordinator; no VPN in the default stack |
+| Optional overlay | **VPN optional** — WireGuard, Tailscale, corporate SD-WAN for operators who want private L3; core protocol unchanged |
 
 ### WAN scheduling rules (v1)
 
@@ -37,7 +38,7 @@ v1 supports **both** profiles under one coordinator model. Workers declare a **s
 
 ## Shared requirements (both profiles)
 
-- Models **≥10B** parameters for reference testing and docs.
+- Models **≥10B** parameters for reference testing; **v1 canonical demo:** [`REFERENCE-MODEL.md`](REFERENCE-MODEL.md) (**Qwen2.5-32B-Instruct**, 32B).
 - Workers may run **llama.cpp RPC**, **OpenVINO**, or other registered backends on the same fabric (heterogeneous pools).
 - Connectors: **Cursor OpenAI base URL** (dev) and **Azure APIM** (enterprise ingress) — see [`INTEGRATIONS.md`](INTEGRATIONS.md).
 

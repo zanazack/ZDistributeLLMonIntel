@@ -26,9 +26,12 @@ Large models are sized for datacenter GPUs. Commodity PCs and workstations (Core
 | Models | **10B parameters and larger** |
 | Workers | **llama.cpp RPC**, **OpenVINO**, plus extensible backends |
 | Clients | **Cursor** (OpenAI base URL) and **Azure APIM** (enterprise) |
+| WAN default | **TLS-only Internet**; VPN overlay **optional** |
+| Attestation | **Optional** (default: PKI + mTLS) |
+| Reference model | **Qwen2.5-32B-Instruct** (32B, ≥16B) |
 | License / visibility | **Apache 2.0**, public OSS |
 
-Details: [`docs/DECISIONS.md`](docs/DECISIONS.md), [`docs/DEPLOYMENT-PROFILES.md`](docs/DEPLOYMENT-PROFILES.md).
+Details: [`docs/DECISIONS.md`](docs/DECISIONS.md), [`docs/DEPLOYMENT-PROFILES.md`](docs/DEPLOYMENT-PROFILES.md), [`docs/REFERENCE-MODEL.md`](docs/REFERENCE-MODEL.md).
 
 ## Conceptual architecture
 

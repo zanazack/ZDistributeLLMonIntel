@@ -10,13 +10,14 @@ Phased delivery for **ZDistributeLLMonIntel**. Grounded in [`DECISIONS.md`](DECI
 - [x] Worker runtimes: **llama.cpp RPC**, **OpenVINO**, extensible matrix
 - [x] Golden-path clients: **Cursor OpenAI base URL** + **enterprise APIM**
 - [ ] ZDLI control/data message schema v0.1
-- [ ] Reference model selection (≥10B) and shard manifest format
+- [x] Reference model: **Qwen2.5-32B-Instruct** (≥16B) — see [`REFERENCE-MODEL.md`](REFERENCE-MODEL.md)
+- [ ] Shard manifest format aligned with reference model
 
 ## Phase 1 — v1 MVP (dual footprint, dual client)
 
 **Fabric**
 
-- [ ] Coordinator: enrollment, site labels, health, single logical **≥10B** model
+- [ ] Coordinator: enrollment, site labels, health, **Qwen2.5-32B-Instruct** logical model
 - [ ] LAN lab: 2-worker pipeline proof (llama.cpp RPC on Intel CPU)
 - [ ] WAN mesh: second site with site-biased scheduling + WAN link policy (lab simulation or two physical sites)
 - [ ] OpenVINO worker adapter: load and run a ≥10B-class graph on at least one Intel target (CPU or GPU)

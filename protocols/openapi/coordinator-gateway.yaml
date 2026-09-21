@@ -51,7 +51,7 @@ components:
       properties:
         id:
           type: string
-          example: intel-distributed-llama-70b-q4
+          example: intel-distributed-qwen2.5-32b-instruct-q4
         object:
           type: string
           example: model
@@ -66,6 +66,7 @@ components:
       properties:
         model:
           type: string
+          example: intel-distributed-qwen2.5-32b-instruct-q4
         messages:
           type: array
           items:
