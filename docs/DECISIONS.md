@@ -4,16 +4,15 @@ Locked choices for the first implementation wave. Update this file when decision
 
 | Decision | Choice | Implications |
 |----------|--------|--------------|
-| **Deployment scope** | **LAN lab + WAN mesh** across sites | **WAN:** workload + collaborative routing (replicas). **LAN:** model sharding (modes 2–4) when admission control approves |
-| **Default inference strategy** | **Hybrid of three problems**; collaborative **default** | See [`FINDINGS.md`](FINDINGS.md) and five modes in [`ARCHITECTURE.md`](ARCHITECTURE.md) |
-| **Implementation order** | **Phase 1 product before LAN sharding science** | Gateway, OVMS/llama replicas, semantic routing, then Phase 2 pipeline for **Qwen2.5-32B** on 2–8 nodes |
-| **Minimum model class** | **10B parameters and larger** | Sharding, memory planning, and demos target ≥10B; **reference demo uses 32B** (see below) |
-| **Worker runtimes** | **llama.cpp RPC**, **OpenVINO**, **extensible** | Coordinator matches artifacts to runtime via capability matrix; additional backends (IPEX, vLLM-CPU, etc.) plug in without changing client contracts |
-| **Golden-path clients** | **Cursor (OpenAI base URL)** and **enterprise APIM** | Phase 1 delivers local OpenAI-compatible connector *and* APIM policy/upstream templates in parallel |
-| **Repo visibility** | **Public open source** | Apache 2.0; no proprietary-only core; enterprise features (SSO, audit) as documented add-ons |
-| **TEE / attestation** | **Optional** | Default trust: **PKI enrollment + mTLS**; Intel TDX/SGX or other attestation as an **opt-in** worker profile for regulated tenants |
-| **WAN transport default** | **TLS-only over public Internet** | Workers/coordinator use mTLS on TCP (443 or configured port); no VPN required |
-| **WAN VPN overlay** | **Optional** | WireGuard, Tailscale, corporate SD-WAN documented in [`DEPLOYMENT-PROFILES.md`](DEPLOYMENT-PROFILES.md); operators may add overlay without forking core |
-| **Reference model (≥16B)** | **Qwen2.5-32B-Instruct** | Canonical HF id, quants, logical model names: [`REFERENCE-MODEL.md`](REFERENCE-MODEL.md) |
+| **North star** | **One large LLM across many Intel edge devices** | Partition weights and inference **tasks** (layers/blocks/experts) so models **≥10B** run where **no single device** has enough RAM or capability |
+| **Cloud dependency** | **Minimum** — edge-first | OpenAI gateway for existing tools; **optional** cloud fallback for overload/outage only, not primary path |
+| **Deployment scope** | **LAN lab + WAN mesh** across sites | Same goal: compose **one logical model** from many endpoints; WAN uses admission control + compression because ITL is RTT-sensitive |
+| **Not the core product** | **Workload-distributed “full model per PC”** | Running a **complete** small LLM on each machine for concurrency scaling is a **different problem**; this repo may integrate tiny helpers (embeddings, optional draft) but **does not** optimize for fleet-of-SLMs as the main value |
+| **Minimum model class** | **10B parameters and larger** | Sharding is mandatory for target class; reference **Qwen2.5-32B-Instruct** ([`REFERENCE-MODEL.md`](REFERENCE-MODEL.md)) |
+| **Worker runtimes** | **llama.cpp RPC**, **OpenVINO**, **extensible** | Backends execute **shards**, not only whole models |
+| **Golden-path clients** | **Cursor (OpenAI base URL)** and **enterprise APIM** | One logical sharded model exposed as familiar API |
+| **Repo visibility** | **Public open source** | Apache 2.0 |
+| **TEE / attestation** | **Optional** | Default: PKI + mTLS |
+| **WAN transport default** | **TLS-only over public Internet** | VPN **optional** |
 
-See [`ROADMAP.md`](ROADMAP.md) for delivery phases and [`ARCHITECTURE.md`](ARCHITECTURE.md) for technical consequences.
+See [`ROADMAP.md`](ROADMAP.md), [`ARCHITECTURE.md`](ARCHITECTURE.md), [`MISSION.md`](MISSION.md).

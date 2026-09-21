@@ -1,15 +1,14 @@
 # Examples
 
-Planned examples:
+All examples target **model-distributed** inference (one LLM, many shards) unless noted as helper-only.
 
 | Example | Phase | Profile | Focus |
 |---------|-------|---------|--------|
-| `replica-pool/` | 1 | LAN or WAN | Mode 1 SLM replicas + semantic routing |
-| `cursor-apim/` | 1 | Both | Golden-path clients |
-| `ovms-worker/` | 1 | LAN | OpenVINO/OVMS OpenAI-compatible worker |
-| `two-node-lan/` | 2 | LAN lab | **Qwen2.5-32B** pipeline, llama.cpp RPC |
-| `speculative-lan/` | 2 | LAN | Mode 4 draft + verify |
-| `two-site-wan/` | 1–2 | WAN TLS-only | Per-site replicas + routing (pipeline stretch in Phase 2 only) |
-| `proxy-env/` | Both | — | Intel HTTP proxy for control plane |
+| `lan-pipeline-32b/` | 1 | LAN | **Qwen2.5-32B** llama.cpp RPC, 2+ shards, Cursor gateway |
+| `openvino-sharded-stage/` | 1 | LAN | OpenVINO stage(s) on Intel CPU/GPU |
+| `cursor-apim/` | 1 | Both | Golden-path clients to **same sharded model id** |
+| `two-site-wan-shards/` | 1–2 | WAN TLS-only | Shards across sites + admission control |
+| `speculative-sharded/` | 2 | LAN | Draft helper + sharded 32B verifier |
+| `proxy-env/` | 1 | Both | Intel HTTP proxy for enrollment/downloads |
 
-Placeholder until Phase 1 implementations exist.
+Placeholder until implementations land.

@@ -1,74 +1,51 @@
 # ZDistributeLLMonIntel
 
-**Intel Endpoint LLM Fabric** — open, secure distributed inference across Intel PCs and edge systems, with **pluggable connectors** so tools like Cursor and enterprise APIM keep using OpenAI-style APIs.
+**Run one large LLM across many Intel edge devices** — partition the model into shards and tasks so **≥10B** models execute on commodity PCs that **cannot** hold the full weights locally. **Edge-first**, **minimum cloud dependency**, **OpenAI-compatible** connectors for Cursor, APIM, and similar tools.
 
 Public OSS: [github.com/zanazack/ZDistributeLLMonIntel](https://github.com/zanazack/ZDistributeLLMonIntel) (Apache 2.0).
 
-## Executive summary
+## Why
 
-Three different problems sit behind “run LLMs on many Intel machines”:
+A single Intel endpoint often lacks RAM and accelerator memory for **Qwen2.5-32B-class** models. The fleet **does** have aggregate memory and compute — this project **stitches endpoints into one virtual inference engine** for **one logical model per request**.
 
-1. **Collaborative / hierarchical** — route easy work to small local models; hard work to larger LAN clusters or approved cloud (**default**).
-2. **Workload-distributed** — full models on many endpoints; scale **concurrency** (one request still bounded by one device’s model size).
-3. **Model-distributed** — split **one** large model across nodes (activations/KV); use inside **latency-bounded LANs** when admission control proves a net win—not by default over WAN.
+This is **not** primarily “run a small complete model on every PC for more concurrent chats.” That is workload distribution; see [`docs/MISSION.md`](docs/MISSION.md) for the distinction.
 
-**Recommendation:** Hybrid of all three; ship a **useful gateway + replicas + routing first**, add **LAN pipeline sharding** for models like **Qwen2.5-32B** in Phase 2. See [`docs/FINDINGS.md`](docs/FINDINGS.md).
+## How
 
-## Vision
+| Layer | Role |
+|-------|------|
+| **Gateway** | OpenAI-compatible API; one model id → one sharded run |
+| **Coordinator** | Shard map, placement, routes, failure recovery, admission control |
+| **Workers** | **Partial model** + llama.cpp RPC / OpenVINO / other runtimes |
+| **ZDLI / EIFP** | Encrypted activations, KV, control (TLS-only WAN; VPN optional) |
 
-| Goal | Approach |
-|------|----------|
-| Use Intel install base efficiently | Modes 1–5 + measured capability manifests ([`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)) |
-| Plug into existing AI tools | OpenAI-compatible **gateway**; Cursor + APIM first |
-| Lower cloud cost & dependency | Local replicas, semantic routing, selective LAN composition |
-| Trust | mTLS baseline; optional attestation; **private domain** for sensitive sharded inference |
+```
+Client → Gateway → Coordinator → [Worker shard 0 → … → shard N] → tokens
+```
 
 ## v1 scope (locked)
 
 | Area | Choice |
 |------|--------|
-| Strategy | **Hybrid**; collaborative default; LAN sharding Phase 2 |
-| Deployment | **LAN lab** (pipeline) + **WAN mesh** (replicas/routing, TLS-only) |
-| Models | **≥10B**; reference **[Qwen2.5-32B-Instruct](docs/REFERENCE-MODEL.md)** |
-| Workers | **llama.cpp RPC**, **OpenVINO/OVMS**, extensible |
-| Clients | **Cursor** + **Azure APIM** |
-| WAN | **TLS-only**; VPN **optional** |
+| **Goal** | **Model-distributed** inference on Intel edge |
+| **Models** | **≥10B**; reference **[Qwen2.5-32B-Instruct](docs/REFERENCE-MODEL.md)** |
+| **Footprint** | **LAN lab** + **WAN mesh** (shard across sites when benchmarks allow) |
+| **Runtimes** | **llama.cpp RPC**, **OpenVINO/OVMS** |
+| **Clients** | **Cursor** + **Azure APIM** |
+| **Cloud** | **Optional fallback only** |
 
-Details: [`docs/DECISIONS.md`](docs/DECISIONS.md).
-
-## Architecture (northbound)
-
-```
-Cursor / agent / OpenAI-compatible client
-        → Intel Endpoint LLM Gateway (connectors)
-        → Coordinator (placement, policy, admission control)
-        → Workers (replica | shard | draft/verify)
-        ZDLI / EIFP encrypted fabric
-```
-
-MCP = tools/context only; not the sharding wire protocol.
-
-## Repository layout
-
-| Path | Purpose |
-|------|---------|
-| [`docs/FINDINGS.md`](docs/FINDINGS.md) | Papers, systems, product positioning |
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Five modes, protocol, manifests |
-| [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) | TTFT, ITL, bytes/token, admission tests |
-| [`docs/ROADMAP.md`](docs/ROADMAP.md) | Phase 1 product → Phase 2 LAN shard → federation |
-| [`connectors/`](connectors/) | openai-gateway, enterprise-apim |
-| [`protocols/`](protocols/) | ZDLI / EIFP sketches |
+[`docs/DECISIONS.md`](docs/DECISIONS.md) · [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · [`docs/ROADMAP.md`](docs/ROADMAP.md)
 
 ## Status
 
-**Design aligned with research findings.** Phase 1 implementation: gateway, OVMS/llama replicas, capability discovery, semantic routing, cloud fallback, Cursor + APIM.
+Design + mission locked; implementation targets **sharded pipeline MVP** for reference 32B model, then WAN multi-site shards with admission control.
 
 ## Getting started
 
-1. [`docs/FINDINGS.md`](docs/FINDINGS.md) — why three problems and admission control matter  
-2. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — execution modes and protocol  
-3. [`docs/ROADMAP.md`](docs/ROADMAP.md) — what to build first  
+1. [`docs/MISSION.md`](docs/MISSION.md) — product focus vs workload-distributed SLM fleets  
+2. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — sharding modes, manifests, protocol  
+3. [`docs/FINDINGS.md`](docs/FINDINGS.md) — papers and engineering cautions  
 
 ## License
 
-Apache License 2.0 — [LICENSE](LICENSE). Contributing: [CONTRIBUTING.md](CONTRIBUTING.md).
+Apache 2.0 — [LICENSE](LICENSE). [CONTRIBUTING.md](CONTRIBUTING.md).
