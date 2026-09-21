@@ -1,88 +1,74 @@
 # ZDistributeLLMonIntel
 
-**Distributed large-language-model inference across Intel-based endpoints**, with a **pluggable connector** model so existing AI clients (IDE assistants, chat UIs, automation) can route work to on-prem and edge capacity instead of defaulting to hyperscale cloud-only inference.
+**Intel Endpoint LLM Fabric** — open, secure distributed inference across Intel PCs and edge systems, with **pluggable connectors** so tools like Cursor and enterprise APIM keep using OpenAI-style APIs.
 
-Public open-source project: [github.com/zanazack/ZDistributeLLMonIntel](https://github.com/zanazack/ZDistributeLLMonIntel).
+Public OSS: [github.com/zanazack/ZDistributeLLMonIntel](https://github.com/zanazack/ZDistributeLLMonIntel) (Apache 2.0).
 
-## Problem
+## Executive summary
 
-Large models are sized for datacenter GPUs. Commodity PCs and workstations (Core, Xeon, Arc, integrated NPUs) are rarely used as a **coordinated pool** for a single logical model. That leaves cost, privacy, and latency on the table—and keeps GenAI tied to cloud APIs.
+Three different problems sit behind “run LLMs on many Intel machines”:
+
+1. **Collaborative / hierarchical** — route easy work to small local models; hard work to larger LAN clusters or approved cloud (**default**).
+2. **Workload-distributed** — full models on many endpoints; scale **concurrency** (one request still bounded by one device’s model size).
+3. **Model-distributed** — split **one** large model across nodes (activations/KV); use inside **latency-bounded LANs** when admission control proves a net win—not by default over WAN.
+
+**Recommendation:** Hybrid of all three; ship a **useful gateway + replicas + routing first**, add **LAN pipeline sharding** for models like **Qwen2.5-32B** in Phase 2. See [`docs/FINDINGS.md`](docs/FINDINGS.md).
 
 ## Vision
 
 | Goal | Approach |
 |------|----------|
-| Use many Intel machines as one inference fabric | Layer-wise or tensor-parallel sharding + a **coordinator** that presents one logical model |
-| Plug into tools users already have | **OpenAI-compatible** and tool-specific **connectors** (proxy / sidecar / MCP) |
-| Low latency at scale | Region-aware scheduling, streaming, binary protocols optional on the data plane |
-| Trust on untrusted networks | **TLS/mTLS**, attestation hooks (optional), tenant isolation at the coordinator |
-| Lower token cost & cloud dependency | Prefer local/edge completion; cloud fallback only when configured |
+| Use Intel install base efficiently | Modes 1–5 + measured capability manifests ([`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)) |
+| Plug into existing AI tools | OpenAI-compatible **gateway**; Cursor + APIM first |
+| Lower cloud cost & dependency | Local replicas, semantic routing, selective LAN composition |
+| Trust | mTLS baseline; optional attestation; **private domain** for sensitive sharded inference |
 
 ## v1 scope (locked)
 
 | Area | Choice |
 |------|--------|
-| Deployment | **LAN lab** and **WAN mesh** across sites |
-| Models | **10B parameters and larger** |
-| Workers | **llama.cpp RPC**, **OpenVINO**, plus extensible backends |
-| Clients | **Cursor** (OpenAI base URL) and **Azure APIM** (enterprise) |
-| WAN default | **TLS-only Internet**; VPN overlay **optional** |
-| Attestation | **Optional** (default: PKI + mTLS) |
-| Reference model | **Qwen2.5-32B-Instruct** (32B, ≥16B) |
-| License / visibility | **Apache 2.0**, public OSS |
+| Strategy | **Hybrid**; collaborative default; LAN sharding Phase 2 |
+| Deployment | **LAN lab** (pipeline) + **WAN mesh** (replicas/routing, TLS-only) |
+| Models | **≥10B**; reference **[Qwen2.5-32B-Instruct](docs/REFERENCE-MODEL.md)** |
+| Workers | **llama.cpp RPC**, **OpenVINO/OVMS**, extensible |
+| Clients | **Cursor** + **Azure APIM** |
+| WAN | **TLS-only**; VPN **optional** |
 
-Details: [`docs/DECISIONS.md`](docs/DECISIONS.md), [`docs/DEPLOYMENT-PROFILES.md`](docs/DEPLOYMENT-PROFILES.md), [`docs/REFERENCE-MODEL.md`](docs/REFERENCE-MODEL.md).
+Details: [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
-## Conceptual architecture
+## Architecture (northbound)
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│  AI clients (Cursor, VS Code + Copilot-style APIs, Gemini      │
-│  tooling, custom apps)                                          │
-└────────────────────────────┬────────────────────────────────────┘
-                             │ HTTPS (OpenAI-compatible / tool SDK)
-┌────────────────────────────▼────────────────────────────────────┐
-│  Connector layer (pluggable): auth translation, routing,        │
-│  policy, metering, cloud fallback                               │
-└────────────────────────────┬────────────────────────────────────┘
-                             │ ZDLI control + encrypted data plane
-┌────────────────────────────▼────────────────────────────────────┐
-│  Coordinator: shard map, session affinity, load balance,        │
-│  KV-cache policy, health, optional Intel-specific runtimes      │
-└──────────────┬──────────────────────────────┬───────────────────┘
-               │ mTLS/gRPC or QUIC streams    │
-     ┌─────────▼─────────┐           ┌────────▼────────┐
-     │  Worker (shard 0) │  ...      │  Worker (shard N)│
-     │  Intel CPU / GPU  │           │  Intel CPU / NPU │
-     │  OpenVINO / IPEX  │           │  llama.cpp / …   │
-     └───────────────────┘           └─────────────────┘
+Cursor / agent / OpenAI-compatible client
+        → Intel Endpoint LLM Gateway (connectors)
+        → Coordinator (placement, policy, admission control)
+        → Workers (replica | shard | draft/verify)
+        ZDLI / EIFP encrypted fabric
 ```
 
-**ZDLI** (working name: *Z Distributed LLM on Intel*) is the protocol family between coordinator and workers—defined incrementally in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+MCP = tools/context only; not the sharding wire protocol.
 
 ## Repository layout
 
 | Path | Purpose |
 |------|---------|
-| [`docs/`](docs/) | Architecture, security, integrations, roadmap |
-| [`connectors/`](connectors/) | Client-facing adapter specs and future implementations |
-| [`protocols/`](protocols/) | Wire formats, API sketches, OpenAPI stubs |
-| [`examples/`](examples/) | Minimal deployment and client configuration patterns |
+| [`docs/FINDINGS.md`](docs/FINDINGS.md) | Papers, systems, product positioning |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Five modes, protocol, manifests |
+| [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) | TTFT, ITL, bytes/token, admission tests |
+| [`docs/ROADMAP.md`](docs/ROADMAP.md) | Phase 1 product → Phase 2 LAN shard → federation |
+| [`connectors/`](connectors/) | openai-gateway, enterprise-apim |
+| [`protocols/`](protocols/) | ZDLI / EIFP sketches |
 
 ## Status
 
-**Design phase with locked v1 decisions.** Next implementation: coordinator MVP, dual runtimes (llama.cpp RPC + OpenVINO), **Cursor + APIM** connectors, LAN then WAN demos for **≥10B** models. See [`docs/ROADMAP.md`](docs/ROADMAP.md).
+**Design aligned with research findings.** Phase 1 implementation: gateway, OVMS/llama replicas, capability discovery, semantic routing, cloud fallback, Cursor + APIM.
 
-## Getting started (developers)
+## Getting started
 
-1. Read [`docs/DECISIONS.md`](docs/DECISIONS.md), [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), and [`docs/INTEGRATIONS.md`](docs/INTEGRATIONS.md).
-2. For LAN vs WAN setup, see [`docs/DEPLOYMENT-PROFILES.md`](docs/DEPLOYMENT-PROFILES.md).
-3. Track delivery and milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md).
+1. [`docs/FINDINGS.md`](docs/FINDINGS.md) — why three problems and admission control matter  
+2. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — execution modes and protocol  
+3. [`docs/ROADMAP.md`](docs/ROADMAP.md) — what to build first  
 
 ## License
 
-Apache License 2.0 — see [LICENSE](LICENSE).
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+Apache License 2.0 — [LICENSE](LICENSE). Contributing: [CONTRIBUTING.md](CONTRIBUTING.md).

@@ -12,6 +12,24 @@ Distributed inference over commodity endpoints assumes **hostile networks** and 
 | Prompt injection to exfiltrate shards | Workers never execute client-supplied code; static graphs only |
 | Denial of service | Quotas, backpressure, circuit breakers |
 | Supply chain (model weights) | Signed manifests, hash verification per shard |
+| **Activation leakage** (mode 2–3) | Intermediate tensors may reveal prompt information even with TLS; **private trust domain** for sensitive workloads; no public volunteer swarms for confidential data ([`FINDINGS.md`](FINDINGS.md)) |
+| Malicious worker (bad activations) | Integrity checks, redundant verification paths, route rebuild (EASTER-style), evict on anomaly |
+| Timing / traffic analysis | Rate limits, padding options (future), minimal telemetry exposure |
+| Compromised scheduler | Signed placement policies, audit of route decisions, coordinator HA |
+| Sybil / fake capacity | Enrollment + identity; Phase 4 federation adds stronger Sybil resistance |
+
+## Minimum security baseline (target)
+
+- Mutual TLS on every fabric hop
+- Device certificates bound to enterprise identity
+- Signed model manifests and shard hashes
+- Secure Boot / measured boot where platform supports it
+- **Optional** remote attestation before sensitive shard assignment
+- Per-request authorization and tenant isolation
+- Short-lived session keys; encrypted local model cache
+- Sandboxed workers; no incoming arbitrary code execution
+- Revocation and remote wipe of cached shards
+- Auditable route, model, and policy decisions
 
 ## Encryption
 

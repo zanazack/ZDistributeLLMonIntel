@@ -1,12 +1,15 @@
 # Examples
 
-Planned examples (Phase 1):
+Planned examples:
 
-| Example | Profile | Model class | Client |
-|---------|---------|-------------|--------|
-| `two-node-lan/` | LAN lab | **Qwen2.5-32B-Instruct** Q4 GGUF, llama.cpp RPC | Cursor → openai-gateway |
-| `openvino-single-site/` | LAN lab | Same model, OpenVINO export | APIM or gateway |
-| `two-site-wan/` | WAN mesh, **TLS-only** (VPN optional) | Qwen2.5-32B, site-biased shards | APIM + Cursor |
+| Example | Phase | Profile | Focus |
+|---------|-------|---------|--------|
+| `replica-pool/` | 1 | LAN or WAN | Mode 1 SLM replicas + semantic routing |
+| `cursor-apim/` | 1 | Both | Golden-path clients |
+| `ovms-worker/` | 1 | LAN | OpenVINO/OVMS OpenAI-compatible worker |
+| `two-node-lan/` | 2 | LAN lab | **Qwen2.5-32B** pipeline, llama.cpp RPC |
+| `speculative-lan/` | 2 | LAN | Mode 4 draft + verify |
+| `two-site-wan/` | 1–2 | WAN TLS-only | Per-site replicas + routing (pipeline stretch in Phase 2 only) |
 | `proxy-env/` | Both | — | Intel HTTP proxy for control plane |
 
 Placeholder until Phase 1 implementations exist.
