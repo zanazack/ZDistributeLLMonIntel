@@ -4,7 +4,9 @@ Locked choices for the first implementation wave. Update this file when decision
 
 | Decision | Choice | Implications |
 |----------|--------|--------------|
-| **Deployment scope** | **LAN lab + WAN mesh** across sites | Two profiles from day one: low-latency site pools and multi-site graphs with stricter SLA and relay options |
+| **Deployment scope** | **LAN lab + WAN mesh** across sites | **WAN:** workload + collaborative routing (replicas). **LAN:** model sharding (modes 2–4) when admission control approves |
+| **Default inference strategy** | **Hybrid of three problems**; collaborative **default** | See [`FINDINGS.md`](FINDINGS.md) and five modes in [`ARCHITECTURE.md`](ARCHITECTURE.md) |
+| **Implementation order** | **Phase 1 product before LAN sharding science** | Gateway, OVMS/llama replicas, semantic routing, then Phase 2 pipeline for **Qwen2.5-32B** on 2–8 nodes |
 | **Minimum model class** | **10B parameters and larger** | Sharding, memory planning, and demos target ≥10B; **reference demo uses 32B** (see below) |
 | **Worker runtimes** | **llama.cpp RPC**, **OpenVINO**, **extensible** | Coordinator matches artifacts to runtime via capability matrix; additional backends (IPEX, vLLM-CPU, etc.) plug in without changing client contracts |
 | **Golden-path clients** | **Cursor (OpenAI base URL)** and **enterprise APIM** | Phase 1 delivers local OpenAI-compatible connector *and* APIM policy/upstream templates in parallel |

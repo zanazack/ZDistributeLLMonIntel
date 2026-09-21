@@ -1,54 +1,46 @@
 # Deployment profiles — LAN lab and WAN mesh
 
-v1 supports **both** profiles under one coordinator model. Workers declare a **site** (or region); the scheduler builds pipelines that respect profile rules.
+v1 supports **both** profiles. They differ in **which execution modes** are default ([`ARCHITECTURE.md`](ARCHITECTURE.md)).
 
 ## LAN lab profile
 
-**Use when:** All workers share a low-latency L2/L3 domain (office lab, NUC cluster, training room).
+**Use when:** Store, branch, office, classroom, lab, or home LAN — RTT between nodes typically **&lt; 2 ms**, bandwidth **≥ 1 GbE** (10 GbE preferred for 32B pipeline).
 
-| Attribute | Target |
-|-----------|--------|
-| RTT between stages | &lt; 2 ms typical |
-| Bandwidth | ≥ 10 GbE preferred for 30B+ pipeline |
-| Parallelism | Pipeline parallel default; tensor parallel optional |
+| Default modes | 1 (replicas), 5 (routing), **2–4 when admitted** |
+| Model-distributed | **Yes** — primary home for **Qwen2.5-32B** pipeline and speculative verify |
 | Discovery | Static config or mDNS on VLAN |
-| Security | mTLS; optional air-gapped (no outbound) |
+| Security | mTLS; optional air-gap |
 
-**Demo path:** 2–8 Intel hosts, ≥10B model (int4/int8), Cursor → local connector → coordinator.
+**Phase 2 target:** 2–8 Intel hosts, pipeline or speculative paths with benchmark proof ([`BENCHMARKS.md`](BENCHMARKS.md)).
 
 ## WAN mesh profile
 
-**Use when:** Workers span **sites** (campus, home office, partner lab) over corporate WAN or Internet.
+**Use when:** Workers span sites over **TLS-only Internet** (VPN **optional** overlay).
 
-| Attribute | Target |
-|-----------|--------|
-| RTT between stages | Site-aware; avoid chaining high-RTT hops on critical path |
-| Topology | **Site-local pipelines** with optional **cross-site** shards only when bandwidth SLA met |
-| Discovery | Coordinator-centric enrollment; no reliance on broadcast |
-| Security | mTLS mandatory; workers **outbound-only** to coordinator where possible |
-| Default transport | **TLS-only Internet** — mTLS between workers and coordinator; no VPN in the default stack |
-| Optional overlay | **VPN optional** — WireGuard, Tailscale, corporate SD-WAN for operators who want private L3; core protocol unchanged |
+| Default modes | **1 (replicas per site)**, **5 (semantic/policy routing)** |
+| Model-distributed pipeline | **Not default** — autoregressive ITL penalizes slow hops; only with admission control + compression + explicit SLA |
+| Topology | Site-local replica pools; cross-site **routing**, not layer chaining on hot path |
+| Discovery | Coordinator enrollment; outbound worker connections |
+| Security | mTLS mandatory; private trust domain for sensitive prompts |
 
-### WAN scheduling rules (v1)
+### WAN scheduling rules
 
-1. **Prefer intra-site shards** for a session; cross-site only if memory/model graph requires it and SLA allows.
-2. **Affinity:** pin returning users to the same site pipeline when KV is site-local.
-3. **Degrade gracefully:** queue, reduce max context, or route to cloud fallback (connector policy)—never silent quality collapse.
-4. **Activation compression** on WAN links (quantized activations or narrower dtypes) — configurable per link class.
+1. Route requests to **best site replica** or SLM tier by latency, load, and policy.
+2. **Do not** place sequential pipeline stages across high-RTT links unless benchmarks show net ITL win.
+3. **Affinity** for site-local KV when using single-node large models per site.
+4. **Degrade:** queue, SLM, or cloud fallback — never silent quality collapse.
 
-## Shared requirements (both profiles)
+## Shared requirements
 
-- Models **≥10B** parameters for reference testing; **v1 canonical demo:** [`REFERENCE-MODEL.md`](REFERENCE-MODEL.md) (**Qwen2.5-32B-Instruct**, 32B).
-- Workers may run **llama.cpp RPC**, **OpenVINO**, or other registered backends on the same fabric (heterogeneous pools).
-- Connectors: **Cursor OpenAI base URL** (dev) and **Azure APIM** (enterprise ingress) — see [`INTEGRATIONS.md`](INTEGRATIONS.md).
+- Catalog includes **≥10B** class; reference **[Qwen2.5-32B-Instruct](REFERENCE-MODEL.md)**.
+- Workers: **llama.cpp**, **OpenVINO/OVMS**, extensible manifests.
+- Clients: **Cursor** + **APIM** golden paths.
 
 ## Intel corporate network
-
-Set proxy for control-plane downloads and git (same pattern as IntelAIPoweredCooler):
 
 ```powershell
 $env:HTTP_PROXY="http://proxy-us.intel.com:911"
 $env:HTTPS_PROXY="http://proxy-us.intel.com:911"
 ```
 
-Data plane between workers on the **same LAN** should use direct paths when policy allows (split horizon).
+Control-plane downloads via proxy; **same-LAN data plane** should use direct paths when policy allows.

@@ -1,6 +1,6 @@
-# Connectors
+# Connectors — Intel Endpoint LLM Gateway
 
-Pluggable **client-facing** adapters live here. Each connector implements the plugin contract described in [`docs/INTEGRATIONS.md`](../docs/INTEGRATIONS.md).
+Pluggable **northbound** adapters. Sharding uses **ZDLI/EIFP** southbound ([`protocols/README.md`](../protocols/README.md)), not MCP.
 
 ## Planned packages
 

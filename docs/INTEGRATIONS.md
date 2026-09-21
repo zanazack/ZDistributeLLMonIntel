@@ -2,6 +2,24 @@
 
 Goal: **do not fork** Cursor, Gemini, or Microsoft Copilot. Provide **adapters** that make the distributed Intel fabric look like what those tools already support—or like a documented extension point (MCP, LSP, local proxy).
 
+## Proprietary models (hard constraint)
+
+The fabric **cannot** split or redistribute weights of **closed** cloud models (e.g. hosted Gemini, most Copilot backends) unless the provider exposes weights or delegated execution.
+
+| Layer | Role |
+|-------|------|
+| **Intel Endpoint LLM Gateway** | OpenAI-compatible API; serves **approved open-weight** models on Intel workers |
+| **Policy routing** | Easy/local → fabric; hard/specialized → larger LAN cluster or **approved upstream** cloud API |
+| **MCP** | Tools, retrieval, enterprise context to whichever **authorized** model is selected — **not** activation/KV sharding |
+
+Tools point a **custom OpenAI base URL** at the gateway; they do not magically distribute Gemini/Copilot internals.
+
+## MCP vs fabric protocol
+
+**MCP** standardizes tools and context (Streamable HTTP, stdio). It is **northbound** for agents.
+
+**ZDLI / EIFP** moves activations, KV segments, speculative batches, and scheduling metadata **southbound** between workers. Do not conflate them ([`ARCHITECTURE.md`](ARCHITECTURE.md)).
+
 ## v1 golden paths (both required in Phase 1)
 
 | Path | Audience | Entry |
@@ -9,7 +27,7 @@ Goal: **do not fork** Cursor, Gemini, or Microsoft Copilot. Provide **adapters**
 | **Cursor + OpenAI base URL** | Developers, labs | Local or team `openai-gateway` connector |
 | **Enterprise APIM** | IT, security, chargeback | Azure API Management in front of same OpenAI-compatible surface |
 
-Both paths hit the same coordinator and **≥10B** logical models on the LAN/WAN fabric. APIM adds SSO, rate limits, IP filters, and audit; Cursor uses direct connector URL + API key.
+Both paths hit the same **Intel Endpoint LLM Gateway** and coordinator. Phase 1 emphasizes **replicas + semantic routing**; Phase 2 adds LAN **Qwen2.5-32B** sharding ([`ROADMAP.md`](ROADMAP.md)). APIM adds SSO, rate limits, IP filters, and audit; Cursor uses direct connector URL + API key.
 
 ## Integration patterns
 

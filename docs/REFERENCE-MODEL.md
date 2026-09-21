@@ -2,6 +2,8 @@
 
 First **canonical** model for lab demos, CI smoke (future), and connector catalog entries. Must satisfy **≥16B** parameters and broad real-world adoption.
 
+**Phase 1:** served as a **single-node replica** (high-RAM host) or via policy/cloud fallback while gateway and routing ship. **Phase 2:** **LAN pipeline sharding** across 2–8 nodes ([`ROADMAP.md`](ROADMAP.md)).
+
 ## Primary: Qwen2.5-32B-Instruct
 
 | Field | Value |
