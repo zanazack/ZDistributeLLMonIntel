@@ -2,6 +2,15 @@
 
 Goal: **do not fork** Cursor, Gemini, or Microsoft Copilot. Provide **adapters** that make the distributed Intel fabric look like what those tools already support—or like a documented extension point (MCP, LSP, local proxy).
 
+## v1 golden paths (both required in Phase 1)
+
+| Path | Audience | Entry |
+|------|----------|--------|
+| **Cursor + OpenAI base URL** | Developers, labs | Local or team `openai-gateway` connector |
+| **Enterprise APIM** | IT, security, chargeback | Azure API Management in front of same OpenAI-compatible surface |
+
+Both paths hit the same coordinator and **≥10B** logical models on the LAN/WAN fabric. APIM adds SSO, rate limits, IP filters, and audit; Cursor uses direct connector URL + API key.
+
 ## Integration patterns
 
 | Pattern | Description | Best for |
@@ -19,7 +28,7 @@ Cursor commonly supports **custom OpenAI-compatible** providers (base URL, model
 **Connector behavior:**
 
 - Serve `https://127.0.0.1:<port>/v1/chat/completions` (and models list).
-- Map `model` field to coordinator **logical model id** (e.g. `intel-distributed-llama-70b-q4`).
+- Map `model` field to coordinator **logical model id** (e.g. `intel-distributed-qwen2.5-32b-q4` — **10B+** only in v1 catalogs).
 - Preserve **streaming** (`text/event-stream`).
 - Optional: MCP server for repo-aware tools while inference stays on ZDLI fabric.
 
@@ -38,13 +47,34 @@ Gemini consumer apps are less openly swappable than IDE OpenAI endpoints. Practi
 
 **Recommendation:** Document **hybrid** pattern: Gemini for web-scale features; ZDLI for **code and confidential** prompts via Cursor/CLI routed through connector.
 
+## Enterprise Azure APIM (v1 golden path)
+
+APIM is the **enterprise front door** for the same OpenAI-compatible API the Cursor connector uses.
+
+**Reference shape:**
+
+```
+Client / internal app → APIM (OAuth/JWT, quotas, logging)
+                      → ZDLI connector or coordinator gateway (/v1/*)
+                      → Coordinator → workers (LAN site and/or WAN mesh)
+```
+
+**Deliverables in `connectors/enterprise-apim/`:**
+
+- Policy fragments: route `model` names matching `intel-distributed-*` to ZDLI backend
+- Backend entity pointing at connector URL (on-prem or VNet)
+- Optional cloud fallback backend with `<choose>` on HTTP 503 / policy header
+- Correlation id passthrough for audit (metadata only by default)
+
+**Identity:** Map APIM subscription or Entra ID claims to coordinator **tenant id** for quotas and model ACLs.
+
 ## Microsoft Copilot
 
 Copilot spans M365 (closed) and **extensibility** (Graph, plugins, Azure OpenAI).
 
 **Practical integrations:**
 
-- **Azure OpenAI-compatible** private endpoints: connector registers as custom upstream; Azure API Management or APIM-style policies send selected models to on-prem coordinator.
+- **Azure OpenAI-compatible** private endpoints: same APIM golden path—policies send selected models to ZDLI upstream instead of Azure OpenAI.
 - **GitHub Copilot** — Limited custom endpoint support; often **enterprise proxy** or **Copilot Business** policies. Fallback: Cursor + ZDLI connector for dev workflows.
 - **Windows Copilot / local** — Future: **Windows ML + OpenVINO** workers as edge tier; connector on PC merges local small model + distributed large model.
 
@@ -75,7 +105,7 @@ ConnectorPlugin
   fallback_policy(ctx) -> Optional[CloudBackend]
 ```
 
-Plugins ship as separate packages (e.g. `zdl-connector-cursor`, `zdl-connector-apim`).
+Plugins ship as separate packages (e.g. `zdl-connector-openai-gateway`, `zdl-connector-apim`).
 
 ## Security notes for integrations
 
@@ -85,4 +115,4 @@ Plugins ship as separate packages (e.g. `zdl-connector-cursor`, `zdl-connector-a
 
 ## Next steps
 
-Prioritize one **golden path**: e.g. Cursor + OpenAI-compatible connector + 2-node LAN demo. Expand to APIM and MCP once streaming path is stable.
+Implement **Cursor** and **APIM** paths in parallel on a shared OpenAI gateway; validate on **LAN lab** first, then **WAN mesh** with two labeled sites. MCP and Gemini hybrid remain Phase 4.
