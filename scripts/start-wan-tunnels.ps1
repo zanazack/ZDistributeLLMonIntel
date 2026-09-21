@@ -5,7 +5,7 @@
 
 .NOTES
   Keep this window open or leave the spawned cloudflared processes running.
-  Copy each printed https://….trycloudflare.com URL into Control Center → WAN linking.
+  Copy each printed https://....trycloudflare.com URL into Control Center WAN linking.
 #>
 $ErrorActionPreference = "Stop"
 
@@ -18,14 +18,13 @@ function Get-Cloudflared {
 }
 
 $cf = Get-Cloudflared
-$repo = Split-Path -Parent $PSScriptRoot
 
 Write-Host ""
 Write-Host "ZDLI WAN tunnels" -ForegroundColor Cyan
 Write-Host "1) Ensure Control Center is running (Start-ZDLI-ControlCenter.cmd)" -ForegroundColor Yellow
-Write-Host "2) Two cloudflared windows will open — copy BOTH https URLs" -ForegroundColor Yellow
-Write-Host "3) Paste into http://127.0.0.1:7443/ui → Save public URLs" -ForegroundColor Yellow
-Write-Host "4) Edge clients use the COORDINATOR tunnel URL (first window, port 7443)" -ForegroundColor Yellow
+Write-Host "2) Two cloudflared windows will open - copy BOTH https URLs" -ForegroundColor Yellow
+Write-Host "3) Paste into http://127.0.0.1:7443/ui then Save public URLs" -ForegroundColor Yellow
+Write-Host "4) Edge clients use the COORDINATOR tunnel URL (first window, local port 7443)" -ForegroundColor Yellow
 Write-Host ""
 
 Start-Process -FilePath $cf -ArgumentList @("tunnel", "--url", "http://127.0.0.1:7443") -WindowStyle Normal
