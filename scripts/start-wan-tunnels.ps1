@@ -1,34 +1,49 @@
 #Requires -Version 5.1
-<#
-.SYNOPSIS
-  Start two Cloudflare quick tunnels for ZDLI WAN lab (coordinator 7443 + gateway 8080).
-
-.NOTES
-  Keep this window open or leave the spawned cloudflared processes running.
-  Copy each printed https://....trycloudflare.com URL into Control Center WAN linking.
-#>
 $ErrorActionPreference = "Stop"
 
-function Get-Cloudflared {
-  $cmd = Get-Command cloudflared -ErrorAction SilentlyContinue
-  if ($cmd) { return $cmd.Source }
-  $local = Join-Path $PSScriptRoot "cloudflared.exe"
-  if (Test-Path $local) { return $local }
-  throw "cloudflared not found. Run: winget install Cloudflare.cloudflared"
+function Test-LocalPort {
+  param([int]$Port)
+  try {
+    $c = New-Object System.Net.Sockets.TcpClient
+    $c.Connect("127.0.0.1", $Port)
+    $c.Close()
+    return $true
+  } catch {
+    return $false
+  }
 }
 
-$cf = Get-Cloudflared
+$wrapper = Join-Path $PSScriptRoot "run-cloudflared-tunnel.cmd"
+if (-not (Test-Path $wrapper)) {
+  throw "Missing $wrapper"
+}
 
 Write-Host ""
 Write-Host "ZDLI WAN tunnels" -ForegroundColor Cyan
-Write-Host "1) Ensure Control Center is running (Start-ZDLI-ControlCenter.cmd)" -ForegroundColor Yellow
-Write-Host "2) Two cloudflared windows will open - copy BOTH https URLs" -ForegroundColor Yellow
-Write-Host "3) Paste into http://127.0.0.1:7443/ui then Save public URLs" -ForegroundColor Yellow
-Write-Host "4) Edge clients use the COORDINATOR tunnel URL (first window, local port 7443)" -ForegroundColor Yellow
+
+if (-not (Test-LocalPort 7443)) {
+  Write-Host "ERROR: Nothing listening on port 7443." -ForegroundColor Red
+  Write-Host "Start Control Center FIRST in another window:" -ForegroundColor Yellow
+  Write-Host "  .\Start-ZDLI-ControlCenter.cmd" -ForegroundColor Yellow
+  Write-Host ""
+  exit 1
+}
+Write-Host "OK: Control Center detected on port 7443" -ForegroundColor Green
+
+if (-not (Test-LocalPort 8080)) {
+  Write-Host "WARN: Port 8080 not open (gateway). Second tunnel may exit until gateway starts." -ForegroundColor Yellow
+} else {
+  Write-Host "OK: Gateway detected on port 8080" -ForegroundColor Green
+}
+
+Write-Host ""
+Write-Host "Opening two CMD windows (stay open on error). Logs: %USERPROFILE%\.zdli\logs\" -ForegroundColor Cyan
+Write-Host "1) Copy https URL from COORDINATOR window (7443) into Control Center UI" -ForegroundColor Yellow
+Write-Host "2) Copy https URL from GATEWAY window (8080) if needed for remote Cursor" -ForegroundColor Yellow
 Write-Host ""
 
-Start-Process -FilePath $cf -ArgumentList @("tunnel", "--url", "http://127.0.0.1:7443") -WindowStyle Normal
+Start-Process -FilePath "cmd.exe" -ArgumentList @("/c", "start", "ZDLI tunnel 7443", "cmd", "/k", $wrapper, "7443")
 Start-Sleep -Seconds 2
-Start-Process -FilePath $cf -ArgumentList @("tunnel", "--url", "http://127.0.0.1:8080") -WindowStyle Normal
+Start-Process -FilePath "cmd.exe" -ArgumentList @("/c", "start", "ZDLI tunnel 8080", "cmd", "/k", $wrapper, "8080")
 
-Write-Host "Tunnel processes started. See docs/TUNNEL-SETUP.md" -ForegroundColor Green
+Write-Host "Tunnel windows launched. If they close immediately, open the log files under .zdli\logs" -ForegroundColor Green
