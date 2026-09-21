@@ -31,3 +31,4 @@ Set-Content -Path $startScript -Value $shortcut -Encoding ASCII
 Write-Host ""
 Write-Host "Done. Run: $startScript" -ForegroundColor Green
 Write-Host "Dashboard opens at http://127.0.0.1:7443/ui" -ForegroundColor Green
+Write-Host "WAN: run .\scripts\start-wan-tunnels.ps1 then docs/TUNNEL-SETUP.md" -ForegroundColor Cyan
