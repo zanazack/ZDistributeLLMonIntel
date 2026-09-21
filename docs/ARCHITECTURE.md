@@ -9,6 +9,9 @@ This document captures the **distributed LLM on Intel** design space and the dir
 3. **Latency-aware placement** — Shard work to nodes that meet SLA (RTT, bandwidth, memory headroom), not round-robin only.
 4. **Runtime agnostic, Intel-optimized** — Workers may use OpenVINO, Intel Extension for PyTorch, llama.cpp (AVX-512/AMX), or future oneAPI paths; the coordinator treats them as capability advertisements.
 5. **Incremental complexity** — Start with pipeline parallelism (layers on different hosts), add tensor parallel and disaggregated prefill/decode when needed.
+6. **Dual footprint** — **LAN lab** and **WAN multi-site mesh** are first-class; scheduling and link classes differ, not the client API.
+
+**Locked v1 decisions:** see [`DECISIONS.md`](DECISIONS.md). Deployment detail: [`DEPLOYMENT-PROFILES.md`](DEPLOYMENT-PROFILES.md).
 
 ## Roles
 
@@ -31,7 +34,7 @@ This document captures the **distributed LLM on Intel** design space and the dir
 ### Worker (Intel endpoint)
 
 - Runs a **shard runtime** (subset of model weights + ops).
-- Registers **capabilities**: RAM, AVX-512/AMX, Arc GPU, NPU, max batch, supported quant formats.
+- Registers **capabilities**: site/region, RAM, AVX-512/AMX, Arc GPU, NPU, max batch, supported quant formats, **runtime id** (`llama.cpp-rpc`, `openvino`, …).
 - Participates in **collective** steps when using tensor parallel (NCCL/Gloo or custom over RDMA/TCP).
 - Sandboxed execution: no arbitrary code from clients; only coordinator-signed graph updates.
 
@@ -44,7 +47,9 @@ This document captures the **distributed LLM on Intel** design space and the dir
 | **Expert parallel (MoE)** | MoE models | Routing + load imbalance |
 | **Disaggregated prefill/decode** | Mixed client RTT | Two pool types; better tail latency |
 
-**Recommended MVP:** pipeline parallel over 2–8 homogeneous Intel hosts on the same site, int4/int8 weights, streaming decode from the last stage.
+**v1 default (LAN lab):** pipeline parallel over 2–8 Intel hosts on one site, **≥10B** models, int4/int8 weights, streaming decode from the last stage.
+
+**v1 WAN mesh:** same protocol stack; coordinator builds **site-biased** pipelines and applies WAN link policies (compression, affinity, SLA gates). See [`DEPLOYMENT-PROFILES.md`](DEPLOYMENT-PROFILES.md).
 
 ## Protocol stack (ZDLI — working name)
 
@@ -79,6 +84,17 @@ Workers advertise and the scheduler may prefer:
 
 The coordinator does **not** require a single stack; it matches **model artifact format** to worker runtime via a **capability matrix**.
 
+### Worker runtime backends (v1)
+
+| Runtime | Typical artifacts | Role on fabric |
+|---------|-------------------|----------------|
+| **llama.cpp RPC** | GGUF, multi-node split via RPC | Primary path for **≥10B** on CPU/AMX; fast iteration, broad model support |
+| **OpenVINO** | IR / exported HF via OpenVINO toolkit | Intel CPU/GPU/NPU optimization; strong for fixed graphs and enterprise deployment |
+| **Intel Extension for PyTorch (IPEX)** | PyTorch checkpoints | Training-adjacent or custom ops; optional worker backend |
+| **Future / community** | vLLM-CPU, ONNX Runtime + OpenVINO EP, etc. | Registered via same capability advertisement API |
+
+A single logical model may use **one runtime homogeneously** in v1; heterogeneous pipelines (OpenVINO stage + llama.cpp stage) remain a post-v1 research item unless conversion guarantees op parity.
+
 ## Reference flows
 
 ### Chat completion (streaming)
@@ -102,12 +118,6 @@ The coordinator does **not** require a single stack; it matches **model artifact
 - **Petals / distributed HF** — pipeline over Internet; latency lessons for WAN.
 - **OpenAI API** — de facto client contract for connectors.
 
-## Open decisions (for your next directions)
+## Remaining open questions
 
-- Target **minimum** model class for v1 (e.g. 7B vs 70B)?
-- **WAN vs LAN-only** for worker membership?
-- **Enterprise** (AD/SSO, audit) vs **community** mesh first?
-- Mandatory **TEE/attestation** (SGX/TDX) or optional?
-- Primary worker runtime: **llama.cpp**, **OpenVINO**, or both?
-
-Document answers in this file or `ROADMAP.md` as they land.
+See [`DECISIONS.md`](DECISIONS.md) — attestation default, WAN overlay preference, and first reference model id.

@@ -4,10 +4,10 @@ Pluggable **client-facing** adapters live here. Each connector implements the pl
 
 ## Planned packages
 
-| Directory | Role |
-|-----------|------|
-| `openai-gateway/` | OpenAI-compatible HTTP server (golden path) |
-| `mcp/` | Model Context Protocol server for agent tools |
-| `enterprise-apim/` | Policies and docs for Azure API Management |
+| Directory | Role | v1 priority |
+|-----------|------|-------------|
+| `openai-gateway/` | OpenAI-compatible HTTP server — **Cursor** base URL | **P0** |
+| `enterprise-apim/` | Azure APIM policies, backends, identity mapping | **P0** |
+| `mcp/` | Model Context Protocol server for agent tools | P2 |
 
-Implementations will be added in Phase 1+. This folder currently holds specifications only.
+Phase 1 delivers **openai-gateway** and **enterprise-apim** against the same coordinator API. Specifications land here before code.

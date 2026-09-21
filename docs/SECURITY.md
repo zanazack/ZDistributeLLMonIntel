@@ -29,7 +29,8 @@ Distributed inference over commodity endpoints assumes **hostile networks** and 
 ## Network
 
 - Default: **no public worker ports**; workers initiate outbound to coordinator (NAT-friendly).
-- Optional **mesh VPN** (WireGuard/Tailscale) for site-to-site shards—document as deployment profile, not mandatory core.
+- **WAN mesh (v1):** treat inter-site links as untrusted; mTLS on all fabric hops; site labels for audit. Optional **mesh VPN** (WireGuard/Tailscale) documented in [`DEPLOYMENT-PROFILES.md`](DEPLOYMENT-PROFILES.md), not mandatory in core.
+- **APIM path:** terminate customer TLS at APIM; mTLS or private link from APIM to connector/coordinator; subscription keys ≠ worker enrollment certs.
 
 ## Proxy / corporate egress
 
