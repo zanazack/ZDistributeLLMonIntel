@@ -20,9 +20,9 @@ Engineering notes from literature still apply:
 |---------|------------|--------------|
 | **Model-distributed inference** | One large model split across PCs; layers/experts pass activations or KV | One request can exceed single-device memory |
 | **Workload-distributed inference** | Each endpoint runs a **complete** smaller model; scheduler routes prompts | Higher aggregate concurrency; one request cannot exceed one device’s model size |
-| **Collaborative / hierarchical inference** | Local SLMs for routing, RAG, drafts, easy queries; larger distributed or cloud for hard queries | Best default for cost, privacy, and intermittent endpoints |
+| **Collaborative / hierarchical inference** | Draft/RAG/routing helpers around a **sharded** large model | Optional accelerators in this repo — not a fleet of full SLMs as the main product |
 
-**One-sentence product position:** An open, secure **Intel Endpoint LLM Fabric** that preserves existing AI application interfaces, routes most work to local Intel devices intelligently, and **selectively composes** multiple endpoints into a larger virtual inference system when network and workload make distribution beneficial—not a promise that arbitrary cloud-scale models always run efficiently across random PCs.
+**One-sentence product position (this repo):** An open, secure **Intel Endpoint LLM Fabric** that runs **one logical large model** across many edge endpoints by **sharding**, preserves OpenAI-style client interfaces, and minimizes cloud use — with benchmarks and admission control so bad shard graphs are not deployed.
 
 ## Design principle: admission control
 
