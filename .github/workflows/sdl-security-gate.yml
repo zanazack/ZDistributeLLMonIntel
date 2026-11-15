@@ -134,7 +134,8 @@ jobs:
         run: |
           set -uo pipefail
           shellcheck --version
-          git ls-files -z '*.sh' | xargs -0 -r shellcheck -f gcc > shellcheck.txt
+          git ls-files -z '*.sh' | xargs -0 -r shellcheck -f gcc > shellcheck.txt || true
+          cat shellcheck.txt
           {
             echo "### ShellCheck (report-only)"
             echo "errors: $(grep -c ': error:' shellcheck.txt || true), warnings: $(grep -c ': warning:' shellcheck.txt || true)"
