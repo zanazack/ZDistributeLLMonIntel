@@ -1,0 +1,245 @@
+# SDL Security Gate - deterministic security checks for every change.
+# Enforcement: secret detection BLOCKS; all other scanners are report-only (SARIF artifacts +
+# job summary) so findings are triaged by humans. Do not weaken or disable these checks.
+# Tool downloads are version-pinned and SHA-256 verified; actions are pinned to commit SHAs.
+name: SDL Security Gate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sdl-security-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GITLEAKS_VERSION: "8.30.1"
+  GITLEAKS_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+  TRIVY_VERSION: "0.76.2"
+  TRIVY_SHA256: "bc0fc726e017b8927a62b2d3531d7a84ee01769daf5c99ed866dced54089fdbf"
+  SYFT_VERSION: "1.57.1"
+  SYFT_SHA256: "bf52519eb57f675d47c07d43213cb6dff6449f3d6d1147ff6701ed91f44eef0c"
+
+jobs:
+  secrets:
+    name: Secret detection (gitleaks, blocking)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout (full history, blobs on demand)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          filter: ${{ github.event_name == 'workflow_dispatch' && '' || 'blob:none' }}
+          # Credentials are kept only so a partial clone can lazily fetch blobs of the scanned range.
+          persist-credentials: true
+      - name: Install gitleaks (checksum verified)
+        run: |
+          set -euo pipefail
+          curl -sSfL -o gitleaks.tgz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  gitleaks.tgz" | sha256sum -c -
+          tar -xzf gitleaks.tgz gitleaks
+          rm gitleaks.tgz
+          ./gitleaks version
+      - name: Scan commits
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          case "$EVENT" in
+            pull_request) RANGE="${PR_BASE}..${PR_HEAD}" ;;
+            push)
+              if [ -n "${PUSH_BEFORE}" ] && [ "${PUSH_BEFORE}" != "0000000000000000000000000000000000000000" ] && git cat-file -e "${PUSH_BEFORE}^{commit}" 2>/dev/null; then
+                RANGE="${PUSH_BEFORE}..${SHA}"
+              else
+                RANGE="-1 ${SHA}"
+              fi ;;
+            *) RANGE="--all" ;;
+          esac
+          echo "Scanning: ${RANGE}"
+          set +e
+          ./gitleaks git . --log-opts="${RANGE}" --redact --no-banner \
+            --report-format sarif --report-path gitleaks.sarif --exit-code 1
+          rc=$?
+          set -e
+          if [ "$rc" -eq 0 ]; then
+            echo "### Gitleaks: no secrets detected (\`${RANGE}\`)" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### :x: Gitleaks detected potential secrets - rotate any real credential, then rewrite or allowlist (.gitleaksignore) after review" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$rc"
+      - name: Upload gitleaks SARIF
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: gitleaks-sarif
+          path: gitleaks.sarif
+          if-no-files-found: ignore
+          retention-days: 30
+
+  bandit:
+    name: Python SAST (bandit, report-only)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Install bandit
+        run: python -m pip install --disable-pip-version-check "bandit[sarif]==1.9.4"
+      - name: Run bandit
+        run: |
+          set -euo pipefail
+          EXCLUDES="./.git,./.venv,./venv,./node_modules,./ui/node_modules"
+          bandit -r . -x "$EXCLUDES" -f sarif -o bandit.sarif --exit-zero -q
+          bandit -r . -x "$EXCLUDES" -f json -o bandit.json --exit-zero -q
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import collections, json
+          r = json.load(open("bandit.json"))["results"]
+          c = collections.Counter((x["issue_severity"], x["test_id"]) for x in r)
+          print("### Bandit (report-only): %d findings" % len(r))
+          print("| Severity | Test | Count |\n|---|---|---|")
+          for (sev, tid), n in sorted(c.items()):
+              print(f"| {sev} | {tid} | {n} |")
+          PY
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bandit-results
+          path: |
+            bandit.sarif
+            bandit.json
+          retention-days: 30
+
+  shellcheck:
+    name: Shell lint (shellcheck, report-only)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run shellcheck
+        run: |
+          set -uo pipefail
+          shellcheck --version
+          git ls-files -z '*.sh' | xargs -0 -r shellcheck -f gcc > shellcheck.txt || true
+          cat shellcheck.txt
+          {
+            echo "### ShellCheck (report-only)"
+            echo "errors: $(grep -c ': error:' shellcheck.txt || true), warnings: $(grep -c ': warning:' shellcheck.txt || true)"
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: shellcheck-results
+          path: shellcheck.txt
+          retention-days: 30
+
+  trivy:
+    name: Dependency / filesystem / IaC scan (trivy, report-only)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install trivy (checksum verified)
+        run: |
+          set -euo pipefail
+          curl -sSfL -o trivy.tgz "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          echo "${TRIVY_SHA256}  trivy.tgz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/bin" && tar -xzf trivy.tgz -C "$RUNNER_TEMP/bin" trivy && rm trivy.tgz
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - name: Run trivy fs
+        run: |
+          set -euo pipefail
+          trivy fs . --scanners vuln,misconfig,secret,license --include-dev-deps \
+            --skip-dirs .git --format json --output trivy.json --exit-code 0 --quiet
+          trivy convert --format sarif --output trivy.sarif trivy.json
+          {
+            echo "### Trivy (report-only)"
+            echo '```'
+            trivy convert --format table --severity HIGH,CRITICAL trivy.json || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: trivy-results
+          path: |
+            trivy.json
+            trivy.sarif
+          retention-days: 30
+
+  sbom:
+    name: SBOM (syft)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install syft (checksum verified)
+        run: |
+          set -euo pipefail
+          curl -sSfL -o syft.tgz "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_linux_amd64.tar.gz"
+          echo "${SYFT_SHA256}  syft.tgz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/bin" && tar -xzf syft.tgz -C "$RUNNER_TEMP/bin" syft && rm syft.tgz
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - name: Generate SBOM
+        run: |
+          set -euo pipefail
+          syft scan dir:. --exclude './.git/**' \
+            -o cyclonedx-json=sbom.cdx.json -o spdx-json=sbom.spdx.json
+          python3 -c "import json; print('### SBOM: %d components' % len(json.load(open('sbom.cdx.json')).get('components', [])))" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sbom
+          path: |
+            sbom.cdx.json
+            sbom.spdx.json
+          retention-days: 90
+
+  codeql:
+    name: CodeQL (${{ matrix.language }}, report-only)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [python, javascript-typescript, actions]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          queries: security-extended
+      - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          category: "/language:${{ matrix.language }}"
+          output: codeql-results
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: codeql-${{ matrix.language }}
+          path: codeql-results
+          if-no-files-found: ignore
+          retention-days: 30

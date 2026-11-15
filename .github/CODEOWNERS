@@ -1,0 +1,15 @@
+# Code owners. Enable "Require review from Code Owners" in branch protection once a second
+# maintainer exists (a sole owner cannot approve their own pull request).
+*                                        @zanazack
+
+# Security policy, CI and agent instructions
+/.github/                                @zanazack
+/SECURITY.md                             @zanazack
+/AGENTS.md                               @zanazack
+/CLAUDE.md                               @zanazack
+/.gitleaksignore                         @zanazack
+
+# Agent, prompt, auth and deployment surfaces
+/protocols/                              @zanazack
+/examples/                               @zanazack
+/docs/SECURITY.md                        @zanazack
